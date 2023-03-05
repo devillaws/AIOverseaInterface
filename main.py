@@ -4,7 +4,6 @@ import openai
 from flask import Flask, redirect, render_template, request, url_for, logging
 
 app = Flask(__name__)
-#openai.api_key = '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'
 
 
 @app.route("/ai/openai/v1/gpt35turbo", methods=("GET", "POST"))
