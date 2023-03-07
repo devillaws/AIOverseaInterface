@@ -1,1 +1,10 @@
+#更新requirements
 pip freeze > requirements.txt
+
+#aliyun镜像安装
+pip install --upgrade pip -i http://mirrors.aliyun.com/pypi/simple --trusted-host mirrors.aliyun.com
+
+#安装pip
+wget https://bootstrap.pypa.io/get-pip.py
+
+#可以用markdown转接口文档
