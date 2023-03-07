@@ -15,6 +15,7 @@ _conn_pool = redis.ConnectionPool(
 
 REDIS = redis.Redis(connection_pool=_conn_pool)
 
+
 """
 redis工具类
 """

@@ -1,9 +1,11 @@
 import json
 import flask
 import openai
+import redis
 from flask import Flask, redirect, render_template, request, url_for, logging, session
 from utils.log import logger
 from flask_session import Session
+from utils.redis_util import REDIS
 
 
 def gpt35turbo():
@@ -13,6 +15,14 @@ def gpt35turbo():
         "errMsg": None,
         "msg": None
     }
+    try:
+        response = REDIS.client_list()
+    except redis.exceptions.RedisError as e:
+        logger.error("redis_error:连接不上redis")
+        res_dict['errType'] = "redis"
+        res_dict['errMsg'] = "获取redis连接失败"
+        res_json = json.dumps(res_dict)
+        return res_json, 200, {"Content-Type": "application/json"}
 
     try:
         authorization_key = flask.request.headers.get("Authorization-Key")
@@ -34,6 +44,17 @@ def gpt35turbo():
         model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
         open_api_key = requset_json.get('open_api_key', None)
         system = requset_json.get('system', None)
+        session_id = user_id + "&" + chat_id
+
+        is_clear_session = requset_json.get('is_clear_session', 0)  # "is_clear_session":1,
+        if is_clear_session == 1:
+            del session[session_id]
+            logger.info("success")
+            res_dict["code"] = 0
+            res_dict['msg'] = "已清空session_id："+session_id
+            res_json = json.dumps(res_dict)
+            return res_json, 200, {"Content-Type": "application/json"}
+
         messages = requset_json.get('messages', None)  # 必填，消息内容
         temperature = requset_json.get('temperature', 1)  # 可选，默认为1，0~2，数值越高创造性越强
         top_p = requset_json.get('top_p', 1)  # 可选，默认为1，0~1，效果类似temperature，不建议都用
@@ -46,9 +67,9 @@ def gpt35turbo():
         logit_bias = requset_json.get('logit_bias', None)  # 可选，默认无，影响特定词汇的生成概率？
         user = requset_json.get('user', None)  # 可选，默认无，用户名
         tran_ascii = requset_json.get('tran_ascii', 0)
-        session_id = user_id + "&" + chat_id
+
         session_prompt_arr = session.get(session_id, [])
-        messages_request = build_session_query(messages, session_id, system)
+        messages_request = build_session_query(messages, session_id, system, session_prompt_arr)
         try:
             openai.api_key = open_api_key
             response = openai.ChatCompletion.create(
@@ -71,10 +92,10 @@ def gpt35turbo():
         # text = response['choices'][0]['message']['content']
         # [choice.message.content for choice in response.choices]
         answer = response['choices'][0]['message']['content']
-        logger.info("success")
         save_session_answer(session_prompt_arr, messages, answer, session_id)
+        logger.info("success")
         res_dict["code"] = 0
-        res_dict['msg'] = response
+        res_dict['msg'] = answer
         res_json = json.dumps(res_dict)
         return res_json, 200, {"Content-Type": "application/json"}
 
@@ -97,8 +118,9 @@ def build_session_query(query, session_id, system, session_prompt):
 
 
 def save_session_answer(session_prompt_arr, query, answer, session_id):
-    query_dict = {"role": "user", "content": query}
     answer_dict = {"role": "assistant", "content": answer}
-    session_prompt_arr.append(query_dict)
+    query_dict = {"role": "user", "content": query}
     session_prompt_arr.append(answer_dict)
-    session[session_id]=session_prompt_arr
+    session_prompt_arr.append(query_dict)
+    session[session_id] = session_prompt_arr
+

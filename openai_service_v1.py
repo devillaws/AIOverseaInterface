@@ -47,7 +47,7 @@ def gpt35turbo():
                 frequency_penalty=frequency_penalty
             )
             # headers = {"Content-Type": "application/json; charset=UTF-8",
-            #            "Authorization": "Bearer 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"}
+            #            "Authorization": "Bearer xxxxxx"}
             # data = {
             #     "model": "gpt-3.5-turbo",
             #     "temperature": 0.9,
