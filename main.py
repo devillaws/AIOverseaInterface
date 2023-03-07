@@ -7,8 +7,8 @@ from flask import Flask, redirect, render_template, request, url_for, logging, s
 from flask_session import Session
 from utils import redis_util
 import openai_service_v2
-from config import
 from utils.redis_util import REDIS
+
 
 app = Flask(__name__)
 # app.debug = True

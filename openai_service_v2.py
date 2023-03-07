@@ -2,8 +2,6 @@ import json
 import flask
 import openai
 from flask import Flask, redirect, render_template, request, url_for, logging, session
-
-from config.config import conf
 from utils.log import logger
 from flask_session import Session
 
@@ -35,6 +33,7 @@ def gpt35turbo():
             return res_json, 200, {"Content-Type": "application/json"}
         model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
         open_api_key = requset_json.get('open_api_key', None)
+        system = requset_json.get('system', None)
         messages = requset_json.get('messages', None)  # 必填，消息内容
         temperature = requset_json.get('temperature', 1)  # 可选，默认为1，0~2，数值越高创造性越强
         top_p = requset_json.get('top_p', 1)  # 可选，默认为1，0~1，效果类似temperature，不建议都用
@@ -47,20 +46,14 @@ def gpt35turbo():
         logit_bias = requset_json.get('logit_bias', None)  # 可选，默认无，影响特定词汇的生成概率？
         user = requset_json.get('user', None)  # 可选，默认无，用户名
         tran_ascii = requset_json.get('tran_ascii', 0)
-
-        session_id = chat_id + "&" + user_id
-        messages = None
-        if session.get(session_id) is None:
-            session[session_id] = messages
-        else:
-            messages = session.get(session_id)
-            logger.info(messages + "is come in")
-
+        session_id = user_id + "&" + chat_id
+        session_prompt_arr = session.get(session_id, [])
+        messages_request = build_session_query(messages, session_id, system)
         try:
             openai.api_key = open_api_key
             response = openai.ChatCompletion.create(
                 model=model,
-                messages=messages,
+                messages=messages_request,
                 temperature=temperature,
                 stream=stream,
                 max_tokens=max_tokens,
@@ -68,7 +61,7 @@ def gpt35turbo():
                 frequency_penalty=frequency_penalty
             )
         except Exception as e:
-            logger.info("openai_error:" + str(e))
+            logger.error("openai_error:" + str(e))
             res_dict["code"] = 1
             res_dict["errType"] = "openai"
             res_dict['errMsg'] = str(e)
@@ -77,14 +70,16 @@ def gpt35turbo():
 
         # text = response['choices'][0]['message']['content']
         # [choice.message.content for choice in response.choices]
+        answer = response['choices'][0]['message']['content']
         logger.info("success")
+        save_session_answer(session_prompt_arr, messages, answer, session_id)
         res_dict["code"] = 0
         res_dict['msg'] = response
         res_json = json.dumps(res_dict)
         return res_json, 200, {"Content-Type": "application/json"}
 
     except Exception as e:
-        logger.info("system_error:" + str(e))
+        logger.error("system_error:" + str(e))
         res_dict["code"] = 1
         res_dict["errType"] = "system"
         res_dict['errMsg'] = str(e)
@@ -92,15 +87,18 @@ def gpt35turbo():
         return res_json, 200, {"Content-Type": "application/json"}
 
 
-def build_session_query(query, session_id):
-    '''
-    build query with conversation history
-    e.g.  Q: xxx
-          A: xxx
-          Q: xxx
-    :param query: query content
-    :param session_id: from session id
-    :return: query content with conversaction
-    '''
-    session_prompt = session.get(session_id, None)
-    session_prompt[""]
+def build_session_query(query, session_id, system, session_prompt):
+    query_dict = {"role": "user", "content": query}
+    system_dict = {"role": "system", "content": system}
+    session_prompt = session.get(session_id, [])
+    session_prompt.append(query_dict)
+    session_prompt.append(system_dict)
+    return session_prompt
+
+
+def save_session_answer(session_prompt_arr, query, answer, session_id):
+    query_dict = {"role": "user", "content": query}
+    answer_dict = {"role": "assistant", "content": answer}
+    session_prompt_arr.append(query_dict)
+    session_prompt_arr.append(answer_dict)
+    session[session_id]=session_prompt_arr
