@@ -2,9 +2,7 @@ import json
 import traceback
 import hashlib
 import redis
-from config import conf
 
-config = conf()
 _conn_pool = redis.ConnectionPool(
     host="127.0.0.1",
     port="23333",

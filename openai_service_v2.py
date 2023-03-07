@@ -69,7 +69,7 @@ def gpt35turbo():
         tran_ascii = requset_json.get('tran_ascii', 0)
 
         session_prompt_arr = session.get(session_id, [])
-        messages_request = build_session_query(messages, session_id, system, session_prompt_arr)
+        messages_request = build_session_query(messages, system, session_id, session_prompt_arr)
         try:
             openai.api_key = open_api_key
             response = openai.ChatCompletion.create(
@@ -92,7 +92,7 @@ def gpt35turbo():
         # text = response['choices'][0]['message']['content']
         # [choice.message.content for choice in response.choices]
         answer = response['choices'][0]['message']['content']
-        save_session_answer(session_prompt_arr, messages, answer, session_id)
+        save_session_answer(messages, answer, session_id, session_prompt_arr)
         logger.info("success")
         res_dict["code"] = 0
         res_dict['msg'] = answer
@@ -108,19 +108,20 @@ def gpt35turbo():
         return res_json, 200, {"Content-Type": "application/json"}
 
 
-def build_session_query(query, session_id, system, session_prompt):
+def build_session_query(query, system, session_id, session_prompt_arr):
     query_dict = {"role": "user", "content": query}
     system_dict = {"role": "system", "content": system}
-    session_prompt = session.get(session_id, [])
+    session_prompt = session_prompt_arr.copy()
     session_prompt.append(query_dict)
     session_prompt.append(system_dict)
     return session_prompt
 
 
-def save_session_answer(session_prompt_arr, query, answer, session_id):
-    answer_dict = {"role": "assistant", "content": answer}
+def save_session_answer(query, answer, session_id, session_prompt_arr):
     query_dict = {"role": "user", "content": query}
-    session_prompt_arr.append(answer_dict)
-    session_prompt_arr.append(query_dict)
-    session[session_id] = session_prompt_arr
+    answer_dict = {"role": "assistant", "content": answer}
+    session_prompt = session_prompt_arr.copy()
+    session_prompt.append(query_dict)
+    session_prompt.append(answer_dict)
+    session[session_id] = session_prompt
 
