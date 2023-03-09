@@ -2,6 +2,8 @@ import json
 import flask
 import openai
 import redis
+
+import openai_service_v3
 from utils.redis_util import REDIS
 from utils import redis_util
 import openai_service_v1
@@ -31,6 +33,10 @@ def gpt35turbo():
 @app.route("/ai/openai/v2/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov2():
     return openai_service_v2.gpt35turbo()
+
+@app.route("/ai/openai/v3/gpt35turbo", methods=("GET", "POST"))
+def gpt35turbov3():
+    return openai_service_v3.gpt35turbo()
 
 
 if __name__ == '__main__':
