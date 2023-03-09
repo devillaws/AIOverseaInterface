@@ -19,7 +19,6 @@ app = Flask(__name__)
 # app.config['SESSION_USE_SIGNER'] = 'BIGBOSS@510630'  # 是否对发送到浏览器上session的cookie值进行加密
 # app.config['SESSION_KEY_PREFIX'] = 'bigboss'  # 保存到session中的值的前缀
 # app.config['SESSION_REDIS'] = REDIS  # 用于连接redis的配置
-test = config["Dev"]
 app.config.from_object(config["Dev"])
 Session(app)
 

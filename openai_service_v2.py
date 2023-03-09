@@ -27,7 +27,7 @@ def gpt35turbo():
     try:
         authorization_key = flask.request.headers.get("Authorization-Key")
         user_id = flask.request.headers.get("user_id")
-        chat_id = flask.request.headers.get("session_id")
+        chat_id = flask.request.headers.get("chat_id")
         requset_json = flask.request.json
         if requset_json is None or authorization_key is None or authorization_key != "BIGBOSS@510630":
             logger.info("请求头key不正确，或入参json不存在，请检查请求")
