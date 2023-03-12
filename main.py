@@ -3,7 +3,6 @@ from flask import Flask
 from flask_session import Session
 from config import config
 
-
 app = Flask(__name__)
 # app.debug = True
 # app.secret_key = "BIGBOSS@510630"
@@ -25,15 +24,16 @@ def gpt35turbo():
 def gpt35turbov2():
     return openai_service_v2.gpt35turbo()
 
+
 @app.route("/ai/openai/v3/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov3():
     return openai_service_v3.gpt35turbo()
+
 
 @app.route("/ai/openai/v4/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov4():
     return openai_service_v4.gpt35turbo()
 
 
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=9000)
+    app.run(host='0.0.0.0', port=9000, threaded=True)
