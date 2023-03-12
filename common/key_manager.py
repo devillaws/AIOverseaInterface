@@ -19,7 +19,7 @@ def update_key_times():
     lock.acquire()
     try:
         # 修改全局变量
-
+        pass
     finally:
         # 释放锁
         lock.release()
@@ -30,7 +30,7 @@ def update_key_time_deque():
     lock.acquire()
     try:
         # 修改全局变量
-
+        pass
     finally:
         # 释放锁
         lock.release()
