@@ -1,14 +1,5 @@
-import json
-import flask
-import openai
-import redis
-
-import openai_service_v3
-from utils.redis_util import REDIS
-from utils import redis_util
-import openai_service_v1
-import openai_service_v2
-from flask import Flask, redirect, render_template, request, url_for, logging, session
+from openai_service import openai_service_v3, openai_service_v2, openai_service_v1, openai_service_v4
+from flask import Flask
 from flask_session import Session
 from config import config
 
@@ -37,6 +28,11 @@ def gpt35turbov2():
 @app.route("/ai/openai/v3/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov3():
     return openai_service_v3.gpt35turbo()
+
+@app.route("/ai/openai/v4/gpt35turbo", methods=("GET", "POST"))
+def gpt35turbov4():
+    return openai_service_v4.gpt35turbo()
+
 
 
 if __name__ == '__main__':
