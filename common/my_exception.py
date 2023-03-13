@@ -4,5 +4,5 @@ class getApiKeyException(Exception):
 
 
 class balanceException(Exception):
-    def __init__(self):
-        pass
+    def __init__(self, value):
+        self.value = value

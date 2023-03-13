@@ -12,14 +12,8 @@ from flask import current_app
 
 
 def gpt35turbo():
-    res_dict = {
-        "code": 1,
-        "errType": None,
-        "errMsg": None,
-        "msg": None
-    }
     try:
-        response = REDIS.client_list()
+        response_redis = REDIS.client_list()
     except redis.exceptions.RedisError as e:
         logger.error("redis_error:连接不上redis")
         return response_manager.make_response(1, "redis", "获取redis连接失败", None)
@@ -38,9 +32,14 @@ def gpt35turbo():
         session_id = user_id + "&" + chat_id
         is_clear_session = requset_json.get('is_clear_session', 0)  # "is_clear_session":1,
         if is_clear_session == 1:
-            del session[session_id]
-            logger.info("已清空session_id：" + session_id)
-            return response_manager.make_response(0, None, None, "已清空session_id：" + session_id)
+            try:
+                del session[session_id]
+                logger.info("已清空session_id：" + session_id)
+                return response_manager.make_response(0, None, None, "已清空session_id：" + session_id)
+            except KeyError as e:
+                logger.error("clear_session_error:查询不到" + str(e))
+                return response_manager.make_response(1, "clear_session_error", "查询不到"+str(e), None)
+
         # api_key调度代码段——start
         try:
             openai_api_key = key_manager.catch_key_times()
@@ -70,28 +69,25 @@ def gpt35turbo():
 
         try:
             openai.api_key = openai_api_key
-            # response = openai.ChatCompletion.create(
-            #     model=model,
-            #     messages=messages_request,
-            #     temperature=temperature,
-            #     stream=stream,
-            #     max_tokens=max_tokens,
-            #     presence_penalty=presence_penalty,
-            #     frequency_penalty=frequency_penalty
-            # )
-            response = "测试中"
-
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages_request,
+                temperature=temperature,
+                stream=stream,
+                max_tokens=max_tokens,
+                presence_penalty=presence_penalty,
+                frequency_penalty=frequency_penalty
+            )
+            # response = "测试中"
+            # answer = "测试中"
         except Exception as e:
             logger.error("openai_error:" + str(e))
             return response_manager.make_response(1, "openai", str(e), None)
 
-        # answer = response['choices'][0]['message']['content']
+        answer = response['choices'][0]['message']['content']
         save_session_answer(messages, answer, session_id, session_prompt_arr)
         logger.info("success")
-        res_dict["code"] = 0
-        res_dict['msg'] = answer
-        res_json = json.dumps(res_dict)
-        return res_json, 200, {"Content-Type": "application/json"}
+        return response_manager.make_response(0, None, answer, None)
 
     except Exception as e:
         logger.error("system_error:" + str(e))
