@@ -1,7 +1,9 @@
+import mysql.connector
 from openai_service import openai_service_v3, openai_service_v2, openai_service_v1, openai_service_v4
 from flask import Flask
 from flask_session import Session
 from config import config
+from utils.mysql_util import connection_pool
 
 app = Flask(__name__)
 # app.debug = True
@@ -12,6 +14,7 @@ app = Flask(__name__)
 # app.config['SESSION_KEY_PREFIX'] = 'bigboss'  # 保存到session中的值的前缀
 # app.config['SESSION_REDIS'] = REDIS  # 用于连接redis的配置
 app.config.from_object(config["Dev"])
+app.config['MYSQL_POOL'] = connection_pool
 Session(app)
 
 

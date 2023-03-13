@@ -2,16 +2,13 @@ import json
 import flask
 import openai
 import redis
-from collections import deque
 from flask import Flask, redirect, render_template, request, url_for, logging, session
 from loguru import logger
 from common import key_manager
-from common.key_manager import key_times, key_time_deque
-from flask_session import Session
-
 from common.my_exception import balanceException, getApiKeyException
 from utils.redis_util import REDIS
 from common import response_manager
+from flask import current_app
 
 
 def gpt35turbo():

@@ -7,7 +7,8 @@ _conn_pool = redis.ConnectionPool(
     host="127.0.0.1",
     port="23333",
     # username=config.get("redis_user", False),
-    password="BIGBOSS@510630"
+    password="BIGBOSS@510630",
+    max_connections=1000
     # db=config.get("redis_db", False),
 )
 
