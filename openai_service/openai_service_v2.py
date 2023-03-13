@@ -3,7 +3,7 @@ import flask
 import openai
 import redis
 from flask import Flask, redirect, render_template, request, url_for, logging, session
-from utils.log import logger
+from loguru import logger
 from flask_session import Session
 from utils.redis_util import REDIS
 
