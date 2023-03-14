@@ -91,7 +91,7 @@ def gpt35turbo():
         answer = response['choices'][0]['message']['content']
         save_session_answer(messages, answer, session_id, session_prompt_arr)
         logger.info("success")
-        return response_manager.make_response(0, None, answer, None)
+        return response_manager.make_response(0, None, None, answer)
 
     except Exception as e:
         logger.error("system_error:" + str(e))
