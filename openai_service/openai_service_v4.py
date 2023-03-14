@@ -1,4 +1,6 @@
 import json
+import time
+
 import flask
 import openai
 import redis
@@ -18,15 +20,17 @@ def gpt35turbo():
         logger.error("redis_error:连接不上redis")
         return response_manager.make_response(1, "redis", "获取redis连接失败", None)
     try:
-        authorization_key = flask.request.headers.get("Authorization-Key")
-        user_id = flask.request.headers.get("user_id")
-        chat_id = flask.request.headers.get("chat_id")
+        authorization_key = request.headers.get("Authorization-Key")
+        user_id = request.headers.get("user-id")
+        chat_id = request.headers.get("chat-id")
+        logger.info("authorization_key:" + authorization_key)
+        print("user_id", user_id)
         requset_json = flask.request.json
         if requset_json is None or authorization_key is None or authorization_key != "BIGBOSS@510630":
-            logger.info("请求头key不正确，或入参json不存在，请检查请求")
+            logger.error("请求头key不正确，或入参json不存在，请检查请求")
             return response_manager.make_response(1, "request", "请求头key不正确，或入参json不存在，请检查请求", None)
         if requset_json is None or user_id is None or chat_id is None or len(user_id) == 0 or len(chat_id) == 0:
-            logger.info("会话id或用户id为空")
+            logger.error("会话id或用户id为空")
             return response_manager.make_response(1, "session", "会话id或用户id为空", None)
         model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
         session_id = user_id + "&" + chat_id
@@ -91,6 +95,7 @@ def gpt35turbo():
 
     except Exception as e:
         logger.error("system_error:" + str(e))
+        e.traceback.print_exc()
         return response_manager.make_response(1, "system", str(e), None)
 
 

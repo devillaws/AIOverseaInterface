@@ -8,3 +8,9 @@ pip install --upgrade pip -i http://mirrors.aliyun.com/pypi/simple --trusted-hos
 wget https://bootstrap.pypa.io/get-pip.py
 
 #可以用markdown转接口文档
+
+#部署时安装依赖
+pip install -r requirements.txt
+
+#gunicorn启动
+gunicorn -c gunicorn_config.py main:app

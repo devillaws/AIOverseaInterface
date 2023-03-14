@@ -11,7 +11,7 @@ config = {
 }
 # 生产
 pro_config = {
-    "host": "202.144.195.96",
+    "host": "127.0.0.1",
     "port": 13306,
     "user": "aiuser",
     "password": "BIGBOSS@aiproject",

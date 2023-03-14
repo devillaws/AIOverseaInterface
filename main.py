@@ -1,9 +1,12 @@
+import flask
 import gevent
-from gevent import monkey
-from gevent import pywsgi
-monkey.patch_all()  # 打上猴子补丁，非常耗时
+# from gevent import monkey
+# from gevent import pywsgi
+# monkey.patch_all()  # 打上猴子补丁，非常耗时
+from loguru import logger
+from werkzeug.debug import DebuggedApplication
 from openai_service import openai_service_v3, openai_service_v2, openai_service_v1, openai_service_v4
-from flask import Flask
+from flask import Flask, request
 from flask_session import Session
 from config import config
 from utils.mysql_util import connection_pool
@@ -51,7 +54,8 @@ def gpt35turbov4():
 
 
 if __name__ == '__main__':
-    # app.run(host='0.0.0.0', port=9000, threaded=True)
-    gevent.config.threadpool_size = 50
-    server = pywsgi.WSGIServer(('127.0.0.1', 5000), app)
-    server.serve_forever()
+    app.run(host='0.0.0.0', port=9000)
+    # dapp = DebuggedApplication(app, evalex=True)
+    # gevent.config.threadpool_size = 50
+    # server = pywsgi.WSGIServer(('127.0.0.1', 5000), app)
+    # server.serve_forever()
