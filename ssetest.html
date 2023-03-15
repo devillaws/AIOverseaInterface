@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+    <html>
+        <body>
+        <h1>response:</h1>
+        <div id="result"></div>
+        <script>
+        var source = new EventSource("/completion");
+        source.onmessage = function(event) {
+            document.getElementById("result").innerHTML += event.data + "<br>";
+        };
+        </script>
+        </body>
+    </html>

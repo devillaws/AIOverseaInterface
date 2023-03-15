@@ -5,12 +5,12 @@ import gevent
 # monkey.patch_all()  # 打上猴子补丁，非常耗时
 from loguru import logger
 from werkzeug.debug import DebuggedApplication
-from openai_service import openai_service_v3, openai_service_v2, openai_service_v1, openai_service_v4
-from flask import Flask, request
+from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5
+from flask import Flask, request, render_template
 from flask_session import Session
 from config import config
 from utils.mysql_util import connection_pool
-
+from flask_sse import sse
 
 app = Flask(__name__)
 # app.debug = True
@@ -25,6 +25,25 @@ app.config['MYSQL_POOL'] = connection_pool
 Session(app)
 
 
+@app.route('/')
+def index():
+    return """
+        <!DOCTYPE html>
+        <html>
+            <body>
+            <h1>response:</h1>
+            <div id="result"></div>
+            <script>
+            var source = new EventSource("/ai/openai/v5/gpt35turbo");
+            source.onmessage = function(event) {
+                document.getElementById("result").innerHTML += event.data + "<br>";
+            };
+            </script>
+            </body>
+        </html>
+        """
+
+
 @app.route("/ai/openai/v1/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbo():
     return openai_service_v1.gpt35turbo()
@@ -35,14 +54,14 @@ def gpt35turbov2():
     return openai_service_v2.gpt35turbo()
 
 
-@app.route("/ai/openai/v3/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov3():
-    return openai_service_v3.gpt35turbo()
-
-
 @app.route("/ai/openai/v4/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov4():
     return openai_service_v4.gpt35turbo()
+
+
+@app.route("/ai/openai/v5/gpt35turbo", methods=("GET", "POST"))
+def gpt35turbov5():
+    return openai_service_v5.gpt35turbo()
 
 
 # @app.teardown_appcontext

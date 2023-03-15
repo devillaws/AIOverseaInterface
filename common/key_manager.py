@@ -22,9 +22,8 @@ def catch_key_times():
     # 在修改全局变量之前，获取锁
     try:
         # 获取最小调用次数的key，用来平均key的调用
-        print("目前key字典情况：", key_times)
+        #print("目前key字典情况：", key_times)
         min_key = min(key_times, key=key_times.get)
-        print("选用的key:", min_key)
         # 计算即将调用的key的每分钟使用频率,限制20秒5次
         call_time = time.time()
         call_time_list = key_time_deque.get(min_key)
