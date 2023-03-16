@@ -16,3 +16,9 @@ pip install -r requirements.txt
 gunicorn -c gunicorn_config.py main:app
 
 nohup gunicorn -c gunicorn_config.py main:app &
+
+#建立ssh隧道，可以使用tmux
+autossh -M 0 -D3129 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -C -p 63916 root@202.144.195.96
+
+#免密码复制key
+ssh-copy-id root@202.144.195.96 -p 63916

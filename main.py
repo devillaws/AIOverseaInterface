@@ -5,8 +5,9 @@ import gevent
 # monkey.patch_all()  # 打上猴子补丁，非常耗时
 from loguru import logger
 from werkzeug.debug import DebuggedApplication
-from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5
-from flask import Flask, request, render_template
+from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5, \
+    openai_service_v6
+from flask import Flask, request, render_template, Response, copy_current_request_context, stream_with_context
 from flask_session import Session
 from config import config
 from utils.mysql_util import connection_pool
@@ -64,6 +65,11 @@ def gpt35turbov5():
     return openai_service_v5.gpt35turbo()
 
 
+@app.route("/ai/openai/v6/gpt35turbo", methods=("GET", "POST"))
+def gpt35turbov6():
+    return Response(stream_with_context(openai_service_v6.gpt35turbo()), mimetype='text/event-stream')
+
+
 # @app.teardown_appcontext
 # def close_db_pool(exception):
 #     # Retrieve the connection pool from Flask's application context
@@ -74,6 +80,7 @@ def gpt35turbov5():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9000)
+    logger.info("系统已关闭")
     # dapp = DebuggedApplication(app, evalex=True)
     # gevent.config.threadpool_size = 50
     # server = pywsgi.WSGIServer(('127.0.0.1', 5000), app)

@@ -1,10 +1,12 @@
 import json
 import time
+from json import JSONDecodeError
 
 import flask
 import openai
 import redis
-from flask import Flask, redirect, render_template, request, url_for, logging, session
+import requests
+from flask import Flask, redirect, render_template, request, url_for, logging, session, copy_current_request_context
 from loguru import logger
 from common import key_manager
 from common.my_exception import balanceException, getApiKeyException
@@ -23,6 +25,8 @@ def gpt35turbo():
         authorization_key = request.headers.get("Authorization-Key")
         user_id = request.headers.get("user-id")
         chat_id = request.headers.get("chat-id")
+        logger.info("authorization_key:" + authorization_key)
+        print("user_id", user_id)
         requset_json = flask.request.json
         if requset_json is None or authorization_key is None or authorization_key != "BIGBOSS@510630":
             logger.error("请求头key不正确，或入参json不存在，请检查请求")
@@ -30,7 +34,6 @@ def gpt35turbo():
         if requset_json is None or user_id is None or chat_id is None or len(user_id) == 0 or len(chat_id) == 0:
             logger.error("会话id或用户id为空")
             return response_manager.make_response(1, "session", "会话id或用户id为空", None)
-        logger.info("用户会话id:"+user_id+"&"+chat_id+"进入系统")
         model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
         session_id = user_id + "&" + chat_id
         is_clear_session = requset_json.get('is_clear_session', 0)  # "is_clear_session":1,
@@ -46,6 +49,7 @@ def gpt35turbo():
         # api_key调度代码段——start
         try:
             openai_api_key = key_manager.catch_key_times()
+            print("选用的key:", openai_api_key)
         except getApiKeyException as e:
             return response_manager.make_response(1, "getApiKey", "多线程获取api失败，原因：" + str(e), None)
         except balanceException as e:
@@ -70,30 +74,54 @@ def gpt35turbo():
 
         session_prompt_arr = session.get(session_id, [])
         messages_request = build_session_query(messages, system, session_id, session_prompt_arr)
-        answer = None
+        answer = ""
 
         try:
-            openai.api_key = openai_api_key
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=messages_request,
-                temperature=temperature,
-                stream=stream,
-                max_tokens=max_tokens,
-                presence_penalty=presence_penalty,
-                frequency_penalty=frequency_penalty
-            )
-            # response = "测试中"
-            # answer = "测试中"
+            headers = {}
+            headers["Content-Type"] = "application/json; charset=UTF-8"
+            headers["Authorization"] = "Bearer " + openai_api_key
+            data = {}
+            data["model"] = "gpt-3.5-turbo"
+            data["temperature"] = temperature
+            data["messages"] = messages_request
+            data["stream"] = True
+            data["max_tokens"] = max_tokens
+            data["presence_penalty"] = presence_penalty
+            data["frequency_penalty"] = frequency_penalty
+            url = 'https://api.openai.com/v1/chat/completions'
+            proxies = {  # 针对urllib3最新版bug的手动设置代理
+                'http': 'http://127.0.0.1:2080',
+                'https': 'http://127.0.0.1:2080'
+            }
+            # response = requests.post(url, data, headers=headers) # 拿来看错误error
+            # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
+            # sse返回
+            if response.status_code == 200:
+                for line in response.iter_lines():
+                    if line:
+                        line = line.decode('utf-8')
+                        line = line[6:].strip()
+                        response_data = json.loads(line)
+                        if "choices" in response_data:
+                            delta = response_data["choices"][0]["delta"]
+                            if "content" in delta:
+                                content = delta["content"]
+                                answer += content
+                                print(content)
+                                yield "data: {}\n\n".format(content)
+                            finish_reason = response_data["choices"][0]["finish_reason"]
+                            if finish_reason is not None and finish_reason == "stop":
+                                save_session_answer(messages, answer, session_id, session_prompt_arr)
+                                logger.info("success")
+            # sse
+        except JSONDecodeError as e:
+            logger.error("request.post:" + str(e))
+            return response_manager.make_response(1, "request.post", str(e), None)
         except Exception as e:
-            logger.error("openai_error:" + str(e))
-            return response_manager.make_response(1, "openai", str(e), None)
-
-        answer = response['choices'][0]['message']['content']
-        save_session_answer(messages, answer, session_id, session_prompt_arr)
-        logger.info("success")
-        logger.info("answer" + answer)
-        return response_manager.make_response(0, None, None, answer)
+            logger.error("request.post:" + str(e))
+            e.traceback.print_exc()
+            return response_manager.make_response(1, "request.post", str(e), None)
 
     except Exception as e:
         logger.error("system_error:" + str(e))
@@ -116,4 +144,4 @@ def save_session_answer(query, answer, session_id, session_prompt_arr):
     session_prompt = session_prompt_arr.copy()
     session_prompt.append(query_dict)
     session_prompt.append(answer_dict)
-    session[session_id] = session_prompt
+    session[session_id] = session_prompt  # 保存进session

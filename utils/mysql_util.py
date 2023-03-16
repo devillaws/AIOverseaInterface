@@ -11,10 +11,10 @@ config = {
 }
 # 生产
 pro_config = {
-    "host": "127.0.0.1",
+    "host": "172.16.135.9",
     "port": 13306,
     "user": "aiuser",
-    "password": "BIGBOSS@aiproject",
+    "password": "Gpdi@510630",
     "database": "aidb"
 }
 
@@ -22,7 +22,7 @@ pro_config = {
 try:
     connection_pool = pooling.MySQLConnectionPool(pool_name="my_pool",
                                                   pool_size=25,
-                                                  **config)
+                                                  **pro_config)
     connection = connection_pool.get_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT api_key FROM openai_keys where status = 0")
