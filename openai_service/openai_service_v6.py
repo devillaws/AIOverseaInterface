@@ -6,10 +6,11 @@ import flask
 import openai
 import redis
 import requests
-from flask import Flask, redirect, render_template, request, url_for, logging, session, copy_current_request_context
+from flask import Flask, redirect, render_template, request, url_for, logging, session
 from loguru import logger
 from common import key_manager
 from common.my_exception import balanceException, getApiKeyException
+from main import app
 from utils.redis_util import REDIS
 from common import response_manager
 from flask import current_app
@@ -37,14 +38,7 @@ def gpt35turbo():
         model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
         session_id = user_id + "&" + chat_id
         is_clear_session = requset_json.get('is_clear_session', 0)  # "is_clear_session":1,
-        if is_clear_session == 1:
-            try:
-                del session[session_id]
-                logger.info("已清空session_id：" + session_id)
-                return response_manager.make_response(0, None, None, "已清空session_id：" + session_id)
-            except KeyError as e:
-                logger.error("clear_session_error:查询不到" + str(e))
-                return response_manager.make_response(1, "clear_session_error", "查询不到" + str(e), None)
+        session_id_test = session_id
 
         # api_key调度代码段——start
         try:
@@ -72,10 +66,13 @@ def gpt35turbo():
         user = requset_json.get('user', None)  # 可选，默认无，用户名
         tran_ascii = requset_json.get('tran_ascii', 0)
 
-        session_prompt_arr = session.get(session_id, [])
+        #session_prompt_arr = session.get(session_id, [])
+        redis_session = REDIS.get(session_id)
+        session_prompt_arr = []
+        if redis_session is not None:
+            session_prompt_arr = json.loads(redis_session)
         messages_request = build_session_query(messages, system, session_id, session_prompt_arr)
         answer = ""
-
         try:
             headers = {}
             headers["Content-Type"] = "application/json; charset=UTF-8"
@@ -93,9 +90,9 @@ def gpt35turbo():
                 'http': 'http://127.0.0.1:2080',
                 'https': 'http://127.0.0.1:2080'
             }
-            # response = requests.post(url, data, headers=headers) # 拿来看错误error
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
             response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
+            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True)
             # sse返回
             if response.status_code == 200:
                 for line in response.iter_lines():
@@ -109,11 +106,19 @@ def gpt35turbo():
                                 content = delta["content"]
                                 answer += content
                                 print(content)
-                                yield "data: {}\n\n".format(content)
+                                yield "data:{}\n\n".format(content)
                             finish_reason = response_data["choices"][0]["finish_reason"]
                             if finish_reason is not None and finish_reason == "stop":
-                                save_session_answer(messages, answer, session_id, session_prompt_arr)
-                                logger.info("success")
+                                # save_session_answer(messages, answer, session_id, session_prompt_arr)
+                                yield "data:[DONE]\n\n"
+                                break
+                                # response.close()
+                                # logger.info("success")
+            response.close()
+            save_session_answer(messages, answer, session_id, session_prompt_arr)
+            # REDIS.flushdb()
+            logger.info("success")
+            return
             # sse
         except JSONDecodeError as e:
             logger.error("request.post:" + str(e))
@@ -122,7 +127,6 @@ def gpt35turbo():
             logger.error("request.post:" + str(e))
             e.traceback.print_exc()
             return response_manager.make_response(1, "request.post", str(e), None)
-
     except Exception as e:
         logger.error("system_error:" + str(e))
         e.traceback.print_exc()
@@ -145,3 +149,5 @@ def save_session_answer(query, answer, session_id, session_prompt_arr):
     session_prompt.append(query_dict)
     session_prompt.append(answer_dict)
     session[session_id] = session_prompt  # 保存进session
+    numbers_str = json.dumps(session_prompt)
+    REDIS.set(session_id, numbers_str)

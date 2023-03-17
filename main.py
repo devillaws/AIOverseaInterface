@@ -6,12 +6,13 @@ import gevent
 from loguru import logger
 from werkzeug.debug import DebuggedApplication
 from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5, \
-    openai_service_v6
-from flask import Flask, request, render_template, Response, copy_current_request_context, stream_with_context
-from flask_session import Session
+    openai_service_v6, clear_session, openai_service_v7
+from flask import Flask, request, render_template, Response, stream_with_context, session
+from flask_session import Session, RedisSessionInterface
 from config import config
 from utils.mysql_util import connection_pool
 from flask_sse import sse
+from flask_cors import CORS
 
 app = Flask(__name__)
 # app.debug = True
@@ -22,8 +23,13 @@ app = Flask(__name__)
 # app.config['SESSION_KEY_PREFIX'] = 'bigboss'  # 保存到session中的值的前缀
 # app.config['SESSION_REDIS'] = REDIS  # 用于连接redis的配置
 app.config.from_object(config["Dev"])
+app.config["REDIS_URL"] = "redis://127.0.0.1"
+app.register_blueprint(sse, url_prefix="/sse/data")
+session_interface = RedisSessionInterface(app.config['SESSION_REDIS'], app.config['SESSION_KEY_PREFIX'])
+app.session_interface = session_interface
+cors = CORS(app)
 app.config['MYSQL_POOL'] = connection_pool
-Session(app)
+#Session(app)
 
 
 @app.route('/')
@@ -35,7 +41,7 @@ def index():
             <h1>response:</h1>
             <div id="result"></div>
             <script>
-            var source = new EventSource("/ai/openai/v5/gpt35turbo");
+            var source = new EventSource("/sse/data");
             source.onmessage = function(event) {
                 document.getElementById("result").innerHTML += event.data + "<br>";
             };
@@ -67,8 +73,24 @@ def gpt35turbov5():
 
 @app.route("/ai/openai/v6/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov6():
-    return Response(stream_with_context(openai_service_v6.gpt35turbo()), mimetype='text/event-stream')
+    # openai_service_v6.gpt35turbo()
+    response = Response(stream_with_context(openai_service_v6.gpt35turbo()), mimetype='text/event-stream')
+    return response
 
+
+@app.route("/ai/openai/v7/gpt35turbo", methods=("GET", "POST"))
+def gpt35turbov7():
+    return openai_service_v7.gpt35turbo()
+
+
+@app.route("/ai/openai/clear", methods=("GET", "POST"))
+def clear():
+    return clear_session.clear()
+
+
+@app.route("/ai/openai/clearRedis", methods=("GET", "POST"))
+def clear_redis():
+    return clear_session.clear_redis()
 
 # @app.teardown_appcontext
 # def close_db_pool(exception):

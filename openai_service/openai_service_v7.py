@@ -1,5 +1,6 @@
 import json
 import time
+from json import JSONDecodeError
 
 import flask
 import openai
@@ -12,6 +13,7 @@ from common.my_exception import balanceException, getApiKeyException
 from utils.redis_util import REDIS
 from common import response_manager
 from flask import current_app
+from flask_sse import sse
 
 
 def gpt35turbo():
@@ -73,7 +75,7 @@ def gpt35turbo():
 
         session_prompt_arr = session.get(session_id, [])
         messages_request = build_session_query(messages, system, session_id, session_prompt_arr)
-        answer = None
+        answer = ""
 
         try:
             headers = {}
@@ -83,6 +85,7 @@ def gpt35turbo():
             data["model"] = "gpt-3.5-turbo"
             data["temperature"] = temperature
             data["messages"] = messages_request
+            data["stream"] = True
             data["max_tokens"] = max_tokens
             data["presence_penalty"] = presence_penalty
             data["frequency_penalty"] = frequency_penalty
@@ -91,20 +94,39 @@ def gpt35turbo():
                 'http': 'http://127.0.0.1:2080',
                 'https': 'http://127.0.0.1:2080'
             }
-            # response = requests.post(url, data, headers=headers) # 拿来看错误error
-            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies)
-        except Exception as e:
+            # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
+            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True)
+            # sse返回
+            if response.status_code == 200:
+                for line in response.iter_lines():
+                    if line:
+                        line = line.decode('utf-8')
+                        line = line[6:].strip()
+                        response_data = json.loads(line)
+                        if "choices" in response_data:
+                            delta = response_data["choices"][0]["delta"]
+                            if "content" in delta:
+                                content = delta["content"]
+                                answer += content
+                                print(content)
+                                sse.publish(content)
+                            finish_reason = response_data["choices"][0]["finish_reason"]
+                            if finish_reason is not None and finish_reason == "stop":
+                                sse.publish('END')
+                                break
+            save_session_answer(messages, answer, session_id, session_prompt_arr)
+            response.close()
+            logger.info("success")
+            return response_manager.make_response(0, None, None, answer)
+            # sse
+        except JSONDecodeError as e:
             logger.error("request.post:" + str(e))
             return response_manager.make_response(1, "request.post", str(e), None)
-        response_data = json.loads(response.text)
-        error = response_data.get('error', None)
-        if error is not None:
-            logger.error("openai_error:" + error['message'])
-            return response_manager.make_response(1, "openai_error", error['message'], None)
-        answer = response_data['choices'][0]['message']['content']
-        save_session_answer(messages, answer, session_id, session_prompt_arr)
-        logger.info("success")
-        return response_manager.make_response(0, None, None, answer)
+        except Exception as e:
+            logger.error("request.post:" + str(e))
+            e.traceback.print_exc()
+            return response_manager.make_response(1, "request.post", str(e), None)
 
     except Exception as e:
         logger.error("system_error:" + str(e))

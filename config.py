@@ -13,6 +13,7 @@ class Dev(Config):
     SESSION_USE_SIGNER = 'BIGBOSS@510630'  # 是否对发送到浏览器上session的cookie值进行加密
     # PERMANENT_SESSION_LIFETIME = timedelta()
     SESSION_PERMANENT = True  # 如果设置为True，则关闭浏览器session就失效。
+    SECRET_KEY = 'bigboss-secret-key'
     DEBUG = True
 
 
