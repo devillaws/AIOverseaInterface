@@ -1,17 +1,26 @@
 from mysql.connector import pooling
 from common import key_manager
 
-# 开发
-config = {
+# 家中开发
+home_config = {
     "host": "202.144.195.96",
     "port": 13306,
     "user": "aiuser",
     "password": "BIGBOSS@aiproject",
     "database": "aidb"
 }
+# 院内开发生产
+dev_config = {
+    "host": "172.16.135.9",
+    "port": 13306,
+    "user": "aiuser",
+    "password": "Gpdi@510630",
+    "database": "aidb"
+}
+
 # 生产
 pro_config = {
-    "host": "172.16.135.9",
+    "host": "127.0.0.1",
     "port": 13306,
     "user": "aiuser",
     "password": "Gpdi@510630",

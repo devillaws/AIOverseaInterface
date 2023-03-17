@@ -6,7 +6,7 @@ import gevent
 from loguru import logger
 from werkzeug.debug import DebuggedApplication
 from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5, \
-    openai_service_v6, clear_session, openai_service_v7
+    openai_service_v6, clear_session, openai_service_v3
 from flask import Flask, request, render_template, Response, stream_with_context, session
 from flask_session import Session, RedisSessionInterface
 from config import config
@@ -61,6 +61,11 @@ def gpt35turbov2():
     return openai_service_v2.gpt35turbo()
 
 
+@app.route("/ai/openai/v3/gpt35turbo", methods=("GET", "POST"))
+def gpt35turbov3():
+    return openai_service_v3.gpt35turbo()
+
+
 @app.route("/ai/openai/v4/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov4():
     return openai_service_v4.gpt35turbo()
@@ -78,17 +83,12 @@ def gpt35turbov6():
     return response
 
 
-@app.route("/ai/openai/v7/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov7():
-    return openai_service_v7.gpt35turbo()
-
-
-@app.route("/ai/openai/clear", methods=("GET", "POST"))
+@app.route("/ai/openai/clear_flask_session", methods=("GET", "POST"))
 def clear():
     return clear_session.clear()
 
 
-@app.route("/ai/openai/clearRedis", methods=("GET", "POST"))
+@app.route("/ai/openai/clear_Redis_session", methods=("GET", "POST"))
 def clear_redis():
     return clear_session.clear_redis()
 

@@ -10,7 +10,6 @@ from flask import Flask, redirect, render_template, request, url_for, logging, s
 from loguru import logger
 from common import key_manager
 from common.my_exception import balanceException, getApiKeyException
-from main import app
 from utils.redis_util import REDIS
 from common import response_manager
 from flask import current_app
@@ -86,10 +85,15 @@ def gpt35turbo():
             data["presence_penalty"] = presence_penalty
             data["frequency_penalty"] = frequency_penalty
             url = 'https://api.openai.com/v1/chat/completions'
+            # proxies = {  # 针对urllib3最新版bug的手动设置代理
+            #     'http': 'http://127.0.0.1:3129',
+            #     'https': 'http://127.0.0.1:3129'
+            # }
             proxies = {  # 针对urllib3最新版bug的手动设置代理
-                'http': 'http://127.0.0.1:2080',
-                'https': 'http://127.0.0.1:2080'
+                'http': 'socks5://127.0.0.1:3129',
+                'https': 'socks5://127.0.0.1:3129'
             }
+            # 院内ssh隧道端口为
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
             response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
             # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True)

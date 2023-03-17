@@ -1,8 +1,7 @@
 一、接口清单
 1）openai_service_v1：最初版本，没有上下文管理，相当于跳板接openai
 2）openai_service_v2：有上下文管理
-3）openai_service_v3：研究sse流的版本，已删除
+3）openai_service_v3：研究sse流的版本，但依赖flask-sse，需要另外建立sse接收接口
 4）openai_service_v4：支持上下文管理与apikey调度
 5）openai_service_v5：更换原生request请求openai，剔除python，openai依赖，实现真正的调度并发
-6）openai_service_v6：支持sse流，但依赖flask-sse，需要另外建立sse接收接口
-7）openai_service_v7：完美支持sse流，支持上下文（redis）、调度管理（mysql）
+6）openai_service_v6：完美支持sse流，支持上下文（redis）、调度管理（mysql）
