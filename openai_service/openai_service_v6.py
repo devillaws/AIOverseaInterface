@@ -89,14 +89,13 @@ def gpt35turbo():
             #     'http': 'http://127.0.0.1:3129',
             #     'https': 'http://127.0.0.1:3129'
             # }
-            proxies = {  # 针对urllib3最新版bug的手动设置代理
-                'http': 'socks5://127.0.0.1:3129',
-                'https': 'socks5://127.0.0.1:3129'
+            proxies = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
+                'http': 'socks5h://127.0.0.1:3129',
+                'https': 'socks5h://127.0.0.1:3129'
             }
-            # 院内ssh隧道端口为
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
             response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
-            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True)
+            #response = requests.post(url, data=json.dumps(data), headers=headers, stream=True)
             # sse返回
             if response.status_code == 200:
                 for line in response.iter_lines():
