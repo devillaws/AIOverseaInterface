@@ -31,7 +31,7 @@ pro_config = {
 try:
     connection_pool = pooling.MySQLConnectionPool(pool_name="my_pool",
                                                   pool_size=25,
-                                                  **pro_config)
+                                                  **dev_config)
     connection = connection_pool.get_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT api_key FROM openai_keys where status = 0")

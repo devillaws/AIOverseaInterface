@@ -39,9 +39,12 @@ def clear_redis():
         user_id = request.headers.get("user-id")
         chat_id = request.headers.get("chat-id")
         logger.info("authorization_key:" + authorization_key)
-        if  authorization_key is None or authorization_key != "BIGBOSS@510630":
+        if authorization_key is None or authorization_key != "BIGBOSS@510630":
             logger.error("请求头key不正确，请检查请求")
             return response_manager.make_response(1, "request", "请求头key不正确，请检查请求", None)
+        if user_id is None or chat_id is None or len(user_id) == 0 or len(chat_id) == 0:
+            logger.error("会话id或用户id为空")
+            return response_manager.make_response(1, "session", "会话id或用户id为空", None)
         session_id = user_id + "&" + chat_id
         try:
             REDIS.delete(session_id)

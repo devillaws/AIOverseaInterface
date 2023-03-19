@@ -1,3 +1,4 @@
+import base64
 import json
 import time
 from json import JSONDecodeError
@@ -24,7 +25,7 @@ def gpt35turbo():
         user_id = request.headers.get("user-id")
         chat_id = request.headers.get("chat-id")
         logger.info("authorization_key:" + authorization_key)
-        print("user_id", user_id)
+
         requset_json = flask.request.json
         if requset_json is None or authorization_key is None or authorization_key != "BIGBOSS@510630":
             logger.error("请求头key不正确，或入参json不存在，请检查请求")
@@ -34,21 +35,20 @@ def gpt35turbo():
             return response_manager.make_response(1, "session", "会话id或用户id为空", None)
         model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
         session_id = user_id + "&" + chat_id
+        print("session_id:", session_id)
         is_clear_session = requset_json.get('is_clear_session', 0)  # "is_clear_session":1,
         session_id_test = session_id
 
         # api_key调度代码段——start
         try:
-            #openai_api_key = key_manager.catch_key_times()
-            openai_api_key="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"
+            openai_api_key = key_manager.catch_key_times()
             print("选用的key:", openai_api_key)
         except getApiKeyException as e:
-            return response_manager.make_response(1, "getApiKey", "多线程获取api失败，原因：" + str(e), None)
+            return response_manager.make_response(1, "getApiKey_error", "多线程获取api失败，原因：" + str(e), None)
         except balanceException as e:
             return response_manager.make_response(1, "balance",
                                                   "已从key池中选出最少调用的key，但该key依旧在20秒内超过5次调用，请缓缓",
                                                   None)
-
         # api_key调度代码段——end
         messages = requset_json.get('messages', None)  # 必填，消息内容
         temperature = requset_json.get('temperature', 1)  # 可选，默认为1，0~2，数值越高创造性越强
@@ -64,7 +64,6 @@ def gpt35turbo():
         user = requset_json.get('user', None)  # 可选，默认无，用户名
         tran_ascii = requset_json.get('tran_ascii', 0)
 
-        #session_prompt_arr = session.get(session_id, [])
         redis_session = REDIS.get(session_id)
         session_prompt_arr = []
         if redis_session is not None:
@@ -83,18 +82,18 @@ def gpt35turbo():
             data["presence_penalty"] = presence_penalty
             data["frequency_penalty"] = frequency_penalty
             url = 'https://api.openai.com/v1/chat/completions'
-            # proxies = {  # 针对urllib3最新版bug的手动设置代理
-            #     'http': 'http://127.0.0.1:3129',
-            #     'https': 'http://127.0.0.1:3129'
-            # }
-            # proxies = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
-            #     'http': 'socks5h://127.0.0.1:3129',
-            #     'https': 'socks5h://127.0.0.1:3129'
-            # }
+            proxies_dev = {  # 针对urllib3最新版bug的手动设置代理
+                'http': 'http://127.0.0.1:2080',
+                'https': 'http://127.0.0.1:2080'
+            }
+            proxies = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
+                'http': 'socks5h://127.0.0.1:3129',
+                'https': 'socks5h://127.0.0.1:3129'
+            }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
-            # response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
-            response = requests.post(url, data=json.dumps(data), headers=headers, stream=True)
-            # sse返回
+            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
+            response.raise_for_status()
             if response.status_code == 200:
                 def event_stream():
                     answer = ""
@@ -108,31 +107,43 @@ def gpt35turbo():
                                 if "content" in delta:
                                     content = delta["content"]
                                     answer += content
-                                    print(content)
-                                    yield "data:{}\n\n".format(content)
+                                    json_content = json.dumps(content)
+                                    yield "data:{}\n\n".format(json_content)
                                 finish_reason = response_data["choices"][0]["finish_reason"]
                                 if finish_reason is not None and finish_reason == "stop":
-                                    # save_session_answer(messages, answer, session_id, session_prompt_arr)
                                     yield "data:[DONE]\n\n"
                                     break
                     response.close()
                     save_session_answer(messages, answer, session_id, session_prompt_arr)
-                    # REDIS.flushdb()
                     logger.info("success")
                 return Response(event_stream(), mimetype="text/event-stream")
             else:
-                return response_manager.make_response(1, "openai_error", "openai接口错误", None)
-
-        except JSONDecodeError as e:
-            logger.error("request.post:" + str(e))
-            return response_manager.make_response(1, "request.post", str(e), None)
+                if response.text is not None:
+                    err_json = json.loads(response.text)
+                    err_json = err_json['error']
+                    openai_err_msg = err_json.get('message', None)
+                    openai_err_type = err_json.get('type', None)
+                    logger.error("openai_error:" + openai_err_type +"msg:" + openai_err_msg)
+                    return response_manager.make_response(1, "openai_error_type:" + openai_err_type, "openai接口错误:" + openai_err_msg , None)
+                else:
+                    return response_manager.make_response(1, "openai_error", "openai接口错误", None)
+        except requests.exceptions.RequestException as e:
+            if e.response is not None and e.response.text is not None:
+                err_json = json.loads(response.text)
+                err_json = err_json['error']
+                openai_err_msg = err_json.get('message', None)
+                openai_err_type = err_json.get('type', None)
+                logger.error("openai_error:" + openai_err_type +"msg:"+openai_err_msg)
+                return response_manager.make_response(1, "openai_error_type:" + openai_err_type, "openai接口错误:" + openai_err_msg, None)
+            else:
+                logger.error("response_error:" + str(e))
+                return response_manager.make_response(1, "response_error", str(e), None)
         except Exception as e:
-            logger.error("request.post:" + str(e))
-            e.traceback.print_exc()
+            logger.error("request_post:" + str(e))
             return response_manager.make_response(1, "request.post", str(e), None)
     except Exception as e:
         logger.error("system_error:" + str(e))
-        e.traceback.print_exc()
+        #e.traceback.print_exc()
         return response_manager.make_response(1, "system", str(e), None)
 
 
