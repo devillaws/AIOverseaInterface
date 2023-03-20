@@ -24,3 +24,6 @@ ssh-copy-id root@202.144.195.96 -p 63916
 
 #redis客户端连接
 redis-cli -h 127.0.0.1 -p 23333 -a BIGBOSS@510630
+
+#redis后台启动
+./redis-server ../redis.conf &

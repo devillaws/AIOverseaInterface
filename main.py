@@ -7,7 +7,7 @@ from loguru import logger
 from werkzeug.debug import DebuggedApplication
 # from utils.mysql_util import connection_pool
 from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5, \
-    openai_service_v6, clear_session, openai_service_v3, openai_service_v7
+    openai_service_v6, clear_session, openai_service_v3, openai_service_v7, openai_v7_edit
 from flask import Flask, request, render_template, Response, stream_with_context, session
 from flask_session import Session, RedisSessionInterface
 from config import config
@@ -60,6 +60,11 @@ def gpt35turbov6():
 @app.route("/ai/openai/v7/gpt35turbo", methods=("GET", "POST"))
 def gpt35turbov7():
     return openai_service_v7.gpt35turbo()
+
+
+@app.route("/ai/openai/v7/edit", methods=("GET", "POST"))
+def gpt35turbov7():
+    return openai_v7_edit.edit()
 
 
 @app.route("/ai/openai/clear_flask_session", methods=("GET", "POST"))

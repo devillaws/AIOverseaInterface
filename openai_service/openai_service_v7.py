@@ -4,6 +4,7 @@ import time
 from json import JSONDecodeError
 
 import flask
+import gevent
 import redis
 import requests
 from flask import Flask, redirect, render_template, request, url_for, logging, session, Response
@@ -25,7 +26,6 @@ def gpt35turbo():
         user_id = request.headers.get("user-id")
         chat_id = request.headers.get("chat-id")
         logger.info("authorization_key:" + authorization_key)
-
         requset_json = flask.request.json
         if requset_json is None or authorization_key is None or authorization_key != "BIGBOSS@510630":
             logger.error("请求头key不正确，或入参json不存在，请检查请求")
@@ -35,14 +35,16 @@ def gpt35turbo():
             return response_manager.make_response(1, "session", "会话id或用户id为空", None)
         model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
         session_id = user_id + "&" + chat_id
-        print("session_id:", session_id)
+        logger.info("session_id:" + session_id)
+        print("session_id:" + session_id)
         is_clear_session = requset_json.get('is_clear_session', 0)  # "is_clear_session":1,
         session_id_test = session_id
 
         # api_key调度代码段——start
         try:
             openai_api_key = key_manager.catch_key_times()
-            print("选用的key:", openai_api_key)
+            logger.info("选用的key:" + openai_api_key)
+            print("选用的key:" + openai_api_key)
         except getApiKeyException as e:
             return response_manager.make_response(1, "getApiKey_error", "多线程获取api失败，原因：" + str(e), None)
         except balanceException as e:
@@ -86,18 +88,22 @@ def gpt35turbo():
                 'http': 'http://127.0.0.1:2080',
                 'https': 'http://127.0.0.1:2080'
             }
-            proxies = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
+            proxies_pro = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
                 'http': 'socks5h://127.0.0.1:3129',
                 'https': 'socks5h://127.0.0.1:3129'
             }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
-            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
-            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True)
+            #response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_dev, stream=True)
             response.raise_for_status()
+            stream_delay = 0.05
+            print("延迟时间：", stream_delay)
             if response.status_code == 200:
                 def event_stream():
                     answer = ""
                     for line in response.iter_lines():
+                        #time.sleep(stream_delay)
+                        gevent.sleep(stream_delay)
                         if line:
                             line = line.decode('utf-8')
                             line = line[6:].strip()

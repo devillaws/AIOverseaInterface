@@ -48,7 +48,7 @@ def clear_redis():
         session_id = user_id + "&" + chat_id
         try:
             REDIS.delete(session_id)
-            print("已清空session_id：", user_id)
+            print("已清空session_id：", session_id)
             logger.info("已清空session_id：" + session_id)
             return response_manager.make_response(0, None, None, "已清空session_id：" + session_id)
         except KeyError as e:
