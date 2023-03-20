@@ -63,7 +63,7 @@ def gpt35turbov7():
 
 
 @app.route("/ai/openai/v7/edit", methods=("GET", "POST"))
-def gpt35turbov7():
+def v7edit():
     return openai_v7_edit.edit()
 
 
