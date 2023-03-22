@@ -2,7 +2,7 @@ import base64
 import json
 import time
 from json import JSONDecodeError
-
+# import tiktoken
 import flask
 import gevent
 import redis
@@ -59,7 +59,8 @@ def gpt35turbo():
         stream = False  # 可选，默认为False，设置为True和网页效果类似，需监听事件来解析
         system = requset_json.get('system', None)
         stop = requset_json.get('stop', None)  # 可选，chatgpt遇到stop里的字符串时停止生成内容
-        max_tokens = requset_json.get('max_tokens', 2048)  # 可选，默认无穷大，如果设置了，需要满足max_tokens+message_token<=4096
+        max_tokens = requset_json.get('max_tokens',
+                                      2048)  # 可选，默认无穷大，如果设置了，需要满足max_tokens+message_token<=4096,这是生成文本的最大长度
         presence_penalty = requset_json.get('presence_penalty', 0)  # 可选，默认为0，-2~2，越大越不允许跑题
         frequency_penalty = requset_json.get('frequency_penalty', 0)  # 可选，默认为0，-2~2，越大越不允许复读机
         logit_bias = requset_json.get('logit_bias', None)  # 可选，默认无，影响特定词汇的生成概率？
@@ -71,12 +72,23 @@ def gpt35turbo():
         if redis_session is not None:
             session_prompt_arr = json.loads(redis_session)
         messages_request = build_session_query(messages, system, session_id, session_prompt_arr)
+        model = "gpt-3.5-turbo"  # 官方模型名字gpt-3.5-turbo
+        # 计算token
+        # 默认max_tokens=2048
+        # max_tokens = 2048
+        # prompt_tokens = num_tokens_from_messages(messages_request, "gpt-3.5-turbo")
+        # if prompt_tokens > 2000:
+        #     msg = session_id+"session用户的当前请求token为" + prompt_tokens + "，已超过2000大小，请重新编辑或新建话题"
+        #     logger.info("tokens_exceeded:"+msg)
+        #     return response_manager.make_response(1, "tokens_exceeded", msg, None)
+        # else:
+        #     max_tokens -= prompt_tokens
         try:
             headers = {}
             headers["Content-Type"] = "application/json; charset=UTF-8"
             headers["Authorization"] = "Bearer " + openai_api_key
             data = {}
-            data["model"] = "gpt-3.5-turbo"
+            data["model"] = model
             data["temperature"] = temperature
             data["messages"] = messages_request
             data["stream"] = True
@@ -88,40 +100,44 @@ def gpt35turbo():
                 'http': 'http://127.0.0.1:2080',
                 'https': 'http://127.0.0.1:2080'
             }
-            proxies_pro = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
+            proxies_product = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
                 'http': 'socks5h://127.0.0.1:3129',
                 'https': 'socks5h://127.0.0.1:3129'
             }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
-            #response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
-            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_dev, stream=True)
+            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_product, stream=True)
             response.raise_for_status()
-            stream_delay = 0.05
-            print("延迟时间：", stream_delay)
+            # stream_delay = 0.1
+            # print("延迟时间：", stream_delay)
             if response.status_code == 200:
                 def event_stream():
                     answer = ""
                     for line in response.iter_lines():
-                        #time.sleep(stream_delay)
-                        gevent.sleep(stream_delay)
+                        # time.sleep(stream_delay)
+                        # gevent.sleep(stream_delay)
                         if line:
                             line = line.decode('utf-8')
                             line = line[6:].strip()
+                            if line == "[DONE]":
+                                yield "data:[DONE]\n\n"
+                                break
                             response_data = json.loads(line)
                             if "choices" in response_data:
                                 delta = response_data["choices"][0]["delta"]
+                                finish_reason = response_data["choices"][0]["finish_reason"]
                                 if "content" in delta:
                                     content = delta["content"]
                                     answer += content
                                     json_content = json.dumps(content)
                                     yield "data:{}\n\n".format(json_content)
-                                finish_reason = response_data["choices"][0]["finish_reason"]
-                                if finish_reason is not None and finish_reason == "stop":
+                                if finish_reason is not None and (finish_reason == "stop" or finish_reason == "length"):
                                     yield "data:[DONE]\n\n"
                                     break
                     response.close()
                     save_session_answer(messages, answer, session_id, session_prompt_arr)
                     logger.info("success")
+
                 return Response(event_stream(), mimetype="text/event-stream")
             else:
                 if response.text is not None:
@@ -129,8 +145,9 @@ def gpt35turbo():
                     err_json = err_json['error']
                     openai_err_msg = err_json.get('message', None)
                     openai_err_type = err_json.get('type', None)
-                    logger.error("openai_error:" + openai_err_type +"msg:" + openai_err_msg)
-                    return response_manager.make_response(1, "openai_error_type:" + openai_err_type, "openai接口错误:" + openai_err_msg , None)
+                    logger.error("openai_error:" + openai_err_type + "msg:" + openai_err_msg)
+                    return response_manager.make_response(1, "openai_error_type:" + openai_err_type,
+                                                          "openai接口错误:" + openai_err_msg, None)
                 else:
                     return response_manager.make_response(1, "openai_error", "openai接口错误", None)
         except requests.exceptions.RequestException as e:
@@ -139,8 +156,10 @@ def gpt35turbo():
                 err_json = err_json['error']
                 openai_err_msg = err_json.get('message', None)
                 openai_err_type = err_json.get('type', None)
-                logger.error("openai_error:" + openai_err_type +"msg:"+openai_err_msg)
-                return response_manager.make_response(1, "openai_error_type:" + openai_err_type, "openai接口错误:" + openai_err_msg, None)
+                logger.error(
+                    "openai_error_type:" + openai_err_type + ",session_id:" + session_id + ",key:" + openai_api_key + ",msg:" + openai_err_msg)
+                return response_manager.make_response(1, "openai_error_type:" + openai_err_type,
+                                                      "openai接口错误:" + openai_err_msg, None)
             else:
                 logger.error("response_error:" + str(e))
                 return response_manager.make_response(1, "response_error", str(e), None)
@@ -149,14 +168,16 @@ def gpt35turbo():
             return response_manager.make_response(1, "request.post", str(e), None)
     except Exception as e:
         logger.error("system_error:" + str(e))
-        #e.traceback.print_exc()
+        # e.traceback.print_exc()
         return response_manager.make_response(1, "system", str(e), None)
 
 
 def build_session_query(query, system, session_id, session_prompt_arr):
     query_dict = {"role": "user", "content": query}
     system_dict = {"role": "system", "content": system}
-    session_prompt = session_prompt_arr.copy()
+    session_prompt = []
+    if session_prompt_arr is not None:
+        session_prompt = session_prompt_arr.copy()
     session_prompt.append(query_dict)
     session_prompt.append(system_dict)
     return session_prompt
@@ -165,8 +186,42 @@ def build_session_query(query, system, session_id, session_prompt_arr):
 def save_session_answer(query, answer, session_id, session_prompt_arr):
     query_dict = {"role": "user", "content": query}
     answer_dict = {"role": "assistant", "content": answer}
-    session_prompt = session_prompt_arr.copy()
+    session_prompt = []
+    if session_prompt_arr is not None:
+        session_prompt = session_prompt_arr.copy()
     session_prompt.append(query_dict)
     session_prompt.append(answer_dict)
     numbers_str = json.dumps(session_prompt)
     REDIS.set(session_id, numbers_str)
+
+# def num_tokens_from_messages(messages, model):
+#     """Returns the number of tokens used by a list of messages."""
+#     try:
+#         encoding = tiktoken.encoding_for_model(model)
+#     except KeyError:
+#         print("Warning: model not found. Using cl100k_base encoding.")
+#         encoding = tiktoken.get_encoding("cl100k_base")
+#     if model == "gpt-3.5-turbo":
+#         print("Warning: gpt-3.5-turbo may change over time. Returning num tokens assuming gpt-3.5-turbo-0301.")
+#         return num_tokens_from_messages(messages, model="gpt-3.5-turbo-0301")
+#     elif model == "gpt-4":
+#         print("Warning: gpt-4 may change over time. Returning num tokens assuming gpt-4-0314.")
+#         return num_tokens_from_messages(messages, model="gpt-4-0314")
+#     elif model == "gpt-3.5-turbo-0301":
+#         tokens_per_message = 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+#         tokens_per_name = -1  # if there's a name, the role is omitted
+#     elif model == "gpt-4-0314":
+#         tokens_per_message = 3
+#         tokens_per_name = 1
+#     else:
+#         raise NotImplementedError(
+#             f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
+#     num_tokens = 0
+#     for message in messages:
+#         num_tokens += tokens_per_message
+#         for key, value in message.items():
+#             num_tokens += len(encoding.encode(value))
+#             if key == "name":
+#                 num_tokens += tokens_per_name
+#     num_tokens += 2  # every reply is primed with <im_start>assistant
+#     return num_tokens
