@@ -17,6 +17,7 @@ from common import response_manager
 
 def gpt35turbo():
     try:
+
         response_redis = REDIS.client_list()
     except redis.exceptions.RedisError as e:
         logger.error("redis_error:连接不上redis")
@@ -59,7 +60,7 @@ def gpt35turbo():
         stream = False  # 可选，默认为False，设置为True和网页效果类似，需监听事件来解析
         system = requset_json.get('system', None)
         stop = requset_json.get('stop', None)  # 可选，chatgpt遇到stop里的字符串时停止生成内容
-        # max_tokens = requset_json.get('max_tokens',None)  # 可选，默认无穷大，如果设置了，需要满足max_tokens+message_token<=4096,这是生成文本的最大长度
+        #max_tokens = requset_json.get('max_tokens',None)  # 可选，默认无穷大，如果设置了，需要满足max_tokens+message_token<=4096,这是生成文本的最大长度
         presence_penalty = requset_json.get('presence_penalty', 0)  # 可选，默认为0，-2~2，越大越不允许跑题
         frequency_penalty = requset_json.get('frequency_penalty', 0)  # 可选，默认为0，-2~2，越大越不允许复读机
         logit_bias = requset_json.get('logit_bias', None)  # 可选，默认无，影响特定词汇的生成概率？
@@ -91,21 +92,17 @@ def gpt35turbo():
             data["temperature"] = temperature
             data["messages"] = messages_request
             data["stream"] = True
-            # data["max_tokens"] = max_tokens
+            #data["max_tokens"] = max_tokens
             data["presence_penalty"] = presence_penalty
             data["frequency_penalty"] = frequency_penalty
             url = 'https://api.openai.com/v1/chat/completions'
             proxies_dev = {  # 针对urllib3最新版bug的手动设置代理
                 'http': 'http://127.0.0.1:2080',
-                'https': 'http://127.0.0.1:2080' #注意必须要
+                'https': 'http://127.0.0.1:2080'
             }
-            proxies_product = {  # 针对院内走ssh隧道
+            proxies_product = {  # 针对urllib3最新版bug的手动设置代理,且针对院内走ssh隧道
                 'http': 'socks5h://127.0.0.1:3129',
                 'https': 'socks5h://127.0.0.1:3129'
-            }
-            proxies_dev2 = {  # 针对院内走ssh隧道
-                'http': 'socks5h://172.16.135.9:3129',
-                'https': 'socks5h://172.16.135.9:3129'
             }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
             # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
@@ -140,6 +137,7 @@ def gpt35turbo():
                     response.close()
                     save_session_answer(messages, answer, session_id, session_prompt_arr)
                     logger.info("success")
+
                 return Response(event_stream(), mimetype="text/event-stream")
             else:
                 if response.text is not None:
@@ -193,12 +191,8 @@ def save_session_answer(query, answer, session_id, session_prompt_arr):
         session_prompt = session_prompt_arr.copy()
     session_prompt.append(query_dict)
     session_prompt.append(answer_dict)
-    length = len(session_prompt)
-    if length > 10:
-        del session_prompt[:2]
     numbers_str = json.dumps(session_prompt)
     REDIS.set(session_id, numbers_str)
-
 
 # def num_tokens_from_messages(messages, model):
 #     """Returns the number of tokens used by a list of messages."""

@@ -27,3 +27,7 @@ redis-cli -h 127.0.0.1 -p 23333 -a BIGBOSS@510630
 
 #redis后台启动
 ./redis-server ../redis.conf &
+
+#mux
+tmux ls
+tmux attach -t bigboss
