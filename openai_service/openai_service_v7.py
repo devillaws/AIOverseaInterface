@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import time
 from json import JSONDecodeError
@@ -11,47 +12,34 @@ from flask import Flask, redirect, render_template, request, url_for, logging, s
 from loguru import logger
 from common import key_manager
 from common.my_exception import balanceException, getApiKeyException
+from utils.mysql_util import add_chat_log
 from utils.redis_util import REDIS
 from common import response_manager
 
 
 def gpt35turbo():
     try:
-        response_redis = REDIS.client_list()
-    except redis.exceptions.RedisError as e:
-        logger.error("redis_error:连接不上redis")
-        return response_manager.make_response(1, "redis", "获取redis连接失败", None)
-    try:
+        ip = request.remote_addr
         authorization_key = request.headers.get("Authorization-Key")
-        user_id = request.headers.get("user-id")
-        chat_id = request.headers.get("chat-id")
-        logger.info("authorization_key:" + authorization_key)
+        user_id = request.headers.get("user-id", None)
+        chat_id = request.headers.get("chat-id", None)
         requset_json = flask.request.json
         if requset_json is None or authorization_key is None or authorization_key != "BIGBOSS@510630":
-            logger.error("请求头key不正确，或入参json不存在，请检查请求")
-            return response_manager.make_response(1, "request", "请求头key不正确，或入参json不存在，请检查请求", None)
+            err_type = "hearder_error"
+            err_msg = "请求头key不正确，或入参json不存在，请检查请求"
+            return response_manager.make_response2(1, ip, None, None, None, None, err_type, err_msg)
         if requset_json is None or user_id is None or chat_id is None or len(user_id) == 0 or len(chat_id) == 0:
-            logger.error("会话id或用户id为空")
-            return response_manager.make_response(1, "session", "会话id或用户id为空", None)
-        model = requset_json.get('model', "gpt-3.5-turbo")  # 必要，模型名字
-        session_id = user_id + "&" + chat_id
-        logger.info("session_id:" + session_id)
-        print("session_id:" + session_id)
-        is_clear_session = requset_json.get('is_clear_session', 0)  # "is_clear_session":1,
-        session_id_test = session_id
-
-        # api_key调度代码段——start
+            err_type = "hearder_error"
+            err_msg = "会话id或用户id为空"
+            return response_manager.make_response2(1, ip, None, None, None, None, err_type, err_msg)
         try:
-            openai_api_key = key_manager.catch_key_times()
-            logger.info("选用的key:" + openai_api_key)
-            print("选用的key:" + openai_api_key)
-        except getApiKeyException as e:
-            return response_manager.make_response(1, "getApiKey_error", "多线程获取api失败，原因：" + str(e), None)
-        except balanceException as e:
-            return response_manager.make_response(1, "balance",
-                                                  "已从key池中选出最少调用的key，但该key依旧在20秒内超过5次调用，请缓缓",
-                                                  None)
-        # api_key调度代码段——end
+            response_redis = REDIS.client_list()
+        except redis.exceptions.RedisError as e:
+            err_type = "redis_error"
+            err_msg = "连接不上redis"
+            return response_manager.make_response2(1, None, None, None, None, err_type, err_msg)
+        session_id = user_id + "&" + chat_id
+        logger.info("session_id:" + session_id+",进入系统")
         messages = requset_json.get('messages', None)  # 必填，消息内容
         temperature = requset_json.get('temperature', 1)  # 可选，默认为1，0~2，数值越高创造性越强
         top_p = requset_json.get('top_p', 1)  # 可选，默认为1，0~1，效果类似temperature，不建议都用
@@ -65,23 +53,25 @@ def gpt35turbo():
         logit_bias = requset_json.get('logit_bias', None)  # 可选，默认无，影响特定词汇的生成概率？
         user = requset_json.get('user', None)  # 可选，默认无，用户名
         tran_ascii = requset_json.get('tran_ascii', 0)
-
+        # api_key调度代码段——start
+        try:
+            openai_api_key = key_manager.catch_key_times()
+            logger.info("选用的key:" + openai_api_key)
+        except getApiKeyException as e:
+            err_type = "getApiKey_error"
+            err_msg = "多线程获取api失败，原因：" + str(e)
+            return response_manager.make_response2(1, user_id, chat_id, messages, None, err_type, err_msg)
+        except balanceException as e:
+            err_type = "balance_error"
+            err_msg = "已从key池中选出最少调用的key，但该key依旧在20秒内超过5次调用，请缓缓"
+            return response_manager.make_response2(1, user_id, chat_id, messages, None, err_type, err_msg)
+        # api_key调度代码段——end
         redis_session = REDIS.get(session_id)
         session_prompt_arr = []
         if redis_session is not None:
             session_prompt_arr = json.loads(redis_session)
         messages_request = build_session_query(messages, system, session_id, session_prompt_arr)
         model = "gpt-3.5-turbo"  # 官方模型名字gpt-3.5-turbo
-        # 计算token
-        # 默认max_tokens=2048
-        # max_tokens = 2048
-        # prompt_tokens = num_tokens_from_messages(messages_request, "gpt-3.5-turbo")
-        # if prompt_tokens > 2000:
-        #     msg = session_id+"session用户的当前请求token为" + prompt_tokens + "，已超过2000大小，请重新编辑或新建话题"
-        #     logger.info("tokens_exceeded:"+msg)
-        #     return response_manager.make_response(1, "tokens_exceeded", msg, None)
-        # else:
-        #     max_tokens -= prompt_tokens
         try:
             headers = {}
             headers["Content-Type"] = "application/json; charset=UTF-8"
@@ -109,10 +99,9 @@ def gpt35turbo():
             }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
             # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
-            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_product, stream=True)
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_dev, stream=True)
             response.raise_for_status()
             # stream_delay = 0.1
-            # print("延迟时间：", stream_delay)
             if response.status_code == 200:
                 def event_stream():
                     answer = ""
@@ -139,39 +128,44 @@ def gpt35turbo():
                                     break
                     response.close()
                     save_session_answer(messages, answer, session_id, session_prompt_arr)
+                    add_chat_log(ip, user_id, chat_id, messages, answer, 0, None, None, datetime.datetime.now())
                     logger.info("success")
                 return Response(event_stream(), mimetype="text/event-stream")
             else:
                 if response.text is not None:
                     err_json = json.loads(response.text)
                     err_json = err_json['error']
-                    openai_err_msg = err_json.get('message', None)
-                    openai_err_type = err_json.get('type', None)
-                    logger.error("openai_error:" + openai_err_type + "msg:" + openai_err_msg)
-                    return response_manager.make_response(1, "openai_error_type:" + openai_err_type,
-                                                          "openai接口错误:" + openai_err_msg, None)
+                    openai_err_msg = err_json.get('message', "")
+                    openai_err_type = err_json.get('type', "")
+                    err_type = "openai_error"
+                    err_msg = openai_err_type+","+openai_err_msg
+                    return response_manager.make_response2(1, user_id, chat_id, messages, None, err_type, err_msg)
                 else:
-                    return response_manager.make_response(1, "openai_error", "openai接口错误", None)
+                    err_type = "openai_error"
+                    err_msg = "response.text为空"
+                    return response_manager.make_response2(1, user_id, chat_id, messages, None, err_type, err_msg)
         except requests.exceptions.RequestException as e:
             if e.response is not None and e.response.text is not None:
-                err_json = json.loads(response.text)
+                err_json = json.loads(e.response.text)
                 err_json = err_json['error']
-                openai_err_msg = err_json.get('message', None)
-                openai_err_type = err_json.get('type', None)
-                logger.error(
-                    "openai_error_type:" + openai_err_type + ",session_id:" + session_id + ",key:" + openai_api_key + ",msg:" + openai_err_msg)
-                return response_manager.make_response(1, "openai_error_type:" + openai_err_type,
-                                                      "openai接口错误:" + openai_err_msg, None)
+                openai_err_msg = err_json.get('message', "")
+                openai_err_type = err_json.get('type', "")
+                err_type = "openai_error"
+                err_msg = openai_err_type + "," + openai_err_msg
+                return response_manager.make_response2(1, user_id, chat_id, messages, None, err_type, err_msg)
+                #logger.error("openai_error:" + openai_err_type + "," + openai_err_msg + ",session_id:" + session_id + ",key:" + openai_api_key)
             else:
                 logger.error("response_error:" + str(e))
                 return response_manager.make_response(1, "response_error", str(e), None)
         except Exception as e:
-            logger.error("request_post:" + str(e))
-            return response_manager.make_response(1, "request.post", str(e), None)
+            logger.error("request_error:" + str(e))
+            add_chat_log(user_id, chat_id, messages, None, 1, "request_error", str(e), datetime.datetime.now())
+            return response_manager.make_response(1, "request_error", str(e), None)
     except Exception as e:
         logger.error("system_error:" + str(e))
         # e.traceback.print_exc()
-        return response_manager.make_response(1, "system", str(e), None)
+        add_chat_log(user_id, chat_id, messages, None, 1, "system_error", str(e), datetime.datetime.now())
+        return response_manager.make_response(1, "system_error", str(e), None)
 
 
 def build_session_query(query, system, session_id, session_prompt_arr):
@@ -198,36 +192,3 @@ def save_session_answer(query, answer, session_id, session_prompt_arr):
         del session_prompt[:2]
     numbers_str = json.dumps(session_prompt)
     REDIS.set(session_id, numbers_str)
-
-
-# def num_tokens_from_messages(messages, model):
-#     """Returns the number of tokens used by a list of messages."""
-#     try:
-#         encoding = tiktoken.encoding_for_model(model)
-#     except KeyError:
-#         print("Warning: model not found. Using cl100k_base encoding.")
-#         encoding = tiktoken.get_encoding("cl100k_base")
-#     if model == "gpt-3.5-turbo":
-#         print("Warning: gpt-3.5-turbo may change over time. Returning num tokens assuming gpt-3.5-turbo-0301.")
-#         return num_tokens_from_messages(messages, model="gpt-3.5-turbo-0301")
-#     elif model == "gpt-4":
-#         print("Warning: gpt-4 may change over time. Returning num tokens assuming gpt-4-0314.")
-#         return num_tokens_from_messages(messages, model="gpt-4-0314")
-#     elif model == "gpt-3.5-turbo-0301":
-#         tokens_per_message = 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
-#         tokens_per_name = -1  # if there's a name, the role is omitted
-#     elif model == "gpt-4-0314":
-#         tokens_per_message = 3
-#         tokens_per_name = 1
-#     else:
-#         raise NotImplementedError(
-#             f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
-#     num_tokens = 0
-#     for message in messages:
-#         num_tokens += tokens_per_message
-#         for key, value in message.items():
-#             num_tokens += len(encoding.encode(value))
-#             if key == "name":
-#                 num_tokens += tokens_per_name
-#     num_tokens += 2  # every reply is primed with <im_start>assistant
-#     return num_tokens

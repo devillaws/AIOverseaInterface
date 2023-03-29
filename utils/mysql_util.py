@@ -48,3 +48,14 @@ try:
         connection.close()
 except Exception as e:
     raise e
+
+
+def add_chat_log(ip, user_id, chat_id, query, answer, status,err_type, err_msg, create_time):
+    connection_add = connection_pool.get_connection()
+    cursor_add = connection_add.cursor()
+    insert_query = "INSERT INTO t_chat_log (ip, user_id,chat_id,query,answer,status,err_type,err_msg,create_time) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+    values = (ip, user_id, chat_id, query, answer, status, err_type, err_msg, create_time)
+    cursor_add.execute(insert_query, values)
+    connection_add.commit()
+    cursor_add.close()
+    connection_add.close()
