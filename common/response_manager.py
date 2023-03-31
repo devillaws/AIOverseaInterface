@@ -1,8 +1,6 @@
 import json
 import datetime
-
 from loguru import logger
-
 from utils.mysql_util import add_chat_log
 
 
@@ -13,7 +11,7 @@ def make_response(code, errType, errMsg, msg):
     return res_json, 200, {"Content-Type": "application/json"}
 
 
-def make_response2(code, ip, user_id, chat_id, query, msg, errType, errMsg):
+def make_response2(code, ip, user_id, chat_id, query, msg, errType, errMsg, select_api_key):
     res_dict = {'code': code,
                 'ip': ip,
                 'userId': user_id,
@@ -21,12 +19,12 @@ def make_response2(code, ip, user_id, chat_id, query, msg, errType, errMsg):
                 'query': query,
                 'msg': msg,
                 'errType': errType,
-                'errMsg': errMsg,
-                'createTime': datetime.datetime.now()}
+                'errMsg': errMsg
+                }
     if code == 1:
         logger.error(errType + ":" + errMsg)
     else:
         logger.info("success")
-    add_chat_log(ip, user_id, chat_id, query, msg, code, errType, errMsg, datetime.datetime.now())
+    add_chat_log(ip, user_id, chat_id, query, msg, code, errType, errMsg, select_api_key, datetime.datetime.now())
     res_json = json.dumps(res_dict)
     return res_json, 200, {"Content-Type": "application/json"}

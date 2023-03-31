@@ -4,12 +4,10 @@ import gevent
 # from gevent import pywsgi
 # monkey.patch_all()  # 打上猴子补丁，非常耗时
 from loguru import logger
-from werkzeug.debug import DebuggedApplication
-# from utils.mysql_util import connection_pool
 from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5, \
     openai_service_v6, clear_session, openai_service_v3, openai_service_v7, openai_v7_edit
-from flask import Flask, request, render_template, Response, stream_with_context, session
-from flask_session import Session, RedisSessionInterface
+from flask import Flask, Response, stream_with_context
+from flask_session import Session
 from config import config
 
 app = Flask(__name__)
