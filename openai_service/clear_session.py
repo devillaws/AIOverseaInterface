@@ -20,16 +20,13 @@ def clear():
         session_id = user_id + "&" + chat_id
         try:
             del session[session_id]
-            print("已清空session_id：", user_id)
             logger.info("已清空session_id：" + session_id)
             return response_manager.make_response(0, None, None, "已清空session_id：" + session_id)
         except KeyError as e:
-            print("clear_session_error:查询不到sessionid", session_id)
             logger.error("clear_session_error:查询不到" + str(e))
             return response_manager.make_response(1, "clear_session_error", "查询不到" + str(e), None)
     except Exception as e:
         logger.error("system_error:" + str(e))
-        e.traceback.print_exc()
         return response_manager.make_response(1, "system", str(e), None)
 
 
@@ -48,14 +45,11 @@ def clear_redis():
         session_id = user_id + "&" + chat_id
         try:
             REDIS.delete(session_id)
-            print("已清空session_id：", session_id)
             logger.info("已清空session_id：" + session_id)
             return response_manager.make_response(0, None, None, "已清空session_id：" + session_id)
         except KeyError as e:
-            print("clear_session_error:查询不到sessionid", session_id)
             logger.error("clear_session_error:查询不到" + str(e))
             return response_manager.make_response(1, "clear_session_error", "查询不到" + str(e), None)
     except Exception as e:
         logger.error("system_error:" + str(e))
-        e.traceback.print_exc()
         return response_manager.make_response(1, "system", str(e), None)
