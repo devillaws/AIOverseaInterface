@@ -1,6 +1,5 @@
 from mysql.connector import pooling
 from common import key_manager
-
 # 家中开发
 home_config = {
     "host": "202.144.195.96",
@@ -32,6 +31,7 @@ try:
     connection_pool = pooling.MySQLConnectionPool(pool_name="my_pool",
                                                   pool_size=25,
                                                   **pro_config)
+
     connection = connection_pool.get_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT api_key FROM openai_keys where status = 0")

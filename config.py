@@ -1,4 +1,3 @@
-from datetime import timedelta
 from utils.redis_util import REDIS
 from utils.mysql_util import connection_pool
 

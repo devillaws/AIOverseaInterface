@@ -1,14 +1,10 @@
-import base64
 import datetime
 import json
-import time
-from json import JSONDecodeError
 # import tiktoken
 import flask
-import gevent
 import redis
 import requests
-from flask import Flask, redirect, render_template, request, url_for, logging, session, Response
+from flask import request, Response
 from loguru import logger
 from common import key_manager
 from common.my_exception import balanceException, getApiKeyException
@@ -99,12 +95,8 @@ def gpt35turbo():
                 'http': 'socks5h://127.0.0.1:3129',
                 'https': 'socks5h://127.0.0.1:3129'
             }
-            proxies_dev2 = {  # 针对院内走ssh隧道
-                'http': 'socks5h://172.16.135.9:3129',
-                'https': 'socks5h://172.16.135.9:3129'
-            }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
-            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True) # 无代理请求
+            # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True, timeout=30) # 无代理请求
             response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_product, stream=True)
             response.raise_for_status()
             # stream_delay = 0.1
@@ -150,6 +142,10 @@ def gpt35turbo():
                     err_type = "openai_error"
                     err_msg = "response.text为空"
                     return response_manager.make_response2(1, ip, user_id, chat_id, messages, answer, err_type, err_msg, openai_api_key)
+        except requests.exceptions.Timeout as e:
+            err_type = "timeout_error"
+            err_msg = "访问openai连接已超时30s"
+            return response_manager.make_response2(1, ip, user_id, chat_id, messages, answer, err_type, err_msg, openai_api_key)
         except requests.exceptions.RequestException as e:
             if e.response is not None and e.response.text is not None:
                 err_json = json.loads(e.response.text)

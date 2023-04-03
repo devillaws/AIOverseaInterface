@@ -1,68 +1,21 @@
-import flask
-import gevent
-# from gevent import monkey
-# from gevent import pywsgi
-# monkey.patch_all()  # 打上猴子补丁，非常耗时
-from loguru import logger
-from openai_service import openai_service_v2, openai_service_v1, openai_service_v4, openai_service_v5, \
-    openai_service_v6, clear_session, openai_service_v3, openai_service_v7, openai_v7_edit
-from flask import Flask, Response, stream_with_context
-from flask_session import Session
+import sys
 from config import config
+from loguru import logger
+from openai_service import clear_session, openai_service_v7, openai_edit_v7
+from flask import Flask, g
+from flask_session import Session
+import atexit
 
 app = Flask(__name__)
 # app.debug = True
-# app.secret_key = "BIGBOSS@510630"
 # app.config['SESSION_TYPE'] = 'redis'  # session类型为redis
 # app.config['SESSION_PERMANENT'] = True  # 如果设置为True，则关闭浏览器session就失效。
 # app.config['SESSION_USE_SIGNER'] = 'BIGBOSS@510630'  # 是否对发送到浏览器上session的cookie值进行加密
 # app.config['SESSION_KEY_PREFIX'] = 'bigboss'  # 保存到session中的值的前缀
 # app.config['SESSION_REDIS'] = REDIS  # 用于连接redis的配置
 # app.config['MYSQL_POOL'] = connection_pool
-app.config.from_object(config["Dev"])
+app.config.from_object(config["Pro"])
 Session(app)
-
-
-@app.route("/ai/openai/v1/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbo():
-    return openai_service_v1.gpt35turbo()
-
-
-@app.route("/ai/openai/v2/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov2():
-    return openai_service_v2.gpt35turbo()
-
-
-@app.route("/ai/openai/v3/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov3():
-    return openai_service_v3.gpt35turbo()
-
-
-@app.route("/ai/openai/v4/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov4():
-    return openai_service_v4.gpt35turbo()
-
-
-@app.route("/ai/openai/v5/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov5():
-    return openai_service_v5.gpt35turbo()
-
-
-@app.route("/ai/openai/v6/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov6():
-    # openai_service_v6.gpt35turbo()
-    response = Response(stream_with_context(openai_service_v6.gpt35turbo()), mimetype='text/event-stream')
-    return response
-
-
-@app.route("/ai/openai/v7/gpt35turbo", methods=("GET", "POST"))
-def gpt35turbov7():
-    return openai_service_v7.gpt35turbo()
-
-
-@app.route("/ai/openai/v7/edit", methods=("GET", "POST"))
-def v7edit():
-    return openai_v7_edit.edit()
 
 
 @app.route("/ai/openai/clear_flask_session", methods=("GET", "POST"))
@@ -75,18 +28,31 @@ def clear_redis():
     return clear_session.clear_redis()
 
 
-# @app.teardown_appcontext
-# def close_db_pool(exception):
-#     # Retrieve the connection pool from Flask's application context
-#     if connection_pool is not None:
-#         # Release all connections in the pool
-#         connection_pool.close()
+@app.route("/ai/openai/v7/gpt35turbo", methods=("GET", "POST"))
+def gpt35turbov7():
+    return openai_service_v7.gpt35turbo()
+
+
+@app.route("/ai/openai/v7/edit", methods=("GET", "POST"))
+def v7edit():
+    return openai_edit_v7.edit()
+
+
+@app.before_first_request
+def setup():
+    atexit.register(close_database_connection)
+    logger.info("程序初始化完毕")
+
+
+def close_database_connection():
+    logger.info("程序已退出")
 
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9000)
-    logger.info("系统已关闭")
-    # dapp = DebuggedApplication(app, evalex=True)
-    # gevent.config.threadpool_size = 50
-    # server = pywsgi.WSGIServer(('127.0.0.1', 5000), app)
-    # server.serve_forever()
+    logger.info("系统已关闭") #为什么会跑两次
+
+
+# @app.route('exit')
+# def hello_world():
+#     sys.exit("程序退出")

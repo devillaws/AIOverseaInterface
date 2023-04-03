@@ -11,7 +11,6 @@ _conn_pool = redis.ConnectionPool(
     max_connections=1000
     # db=config.get("redis_db", False),
 )
-
 REDIS = redis.Redis(connection_pool=_conn_pool)
 
 
