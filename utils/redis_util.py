@@ -1,14 +1,14 @@
 import json
-import traceback
-import hashlib
 import redis
+from config import setting
+
 
 _conn_pool = redis.ConnectionPool(
-    host="127.0.0.1",
-    port="23333",
+    host=setting.redis_host,
+    port=setting.redis_port,
     # username=config.get("redis_user", False),
-    password="BIGBOSS@510630",
-    max_connections=1000
+    password=setting.redis_password,
+    max_connections=setting.redis_max_connections
     # db=config.get("redis_db", False),
 )
 REDIS = redis.Redis(connection_pool=_conn_pool)

@@ -1,8 +1,7 @@
-import sys
-from config import config
+from config.config import config
 from loguru import logger
 from openai_service import clear_session, openai_service_v7, openai_edit_v7, openai_api_chat
-from flask import Flask, g
+from flask import Flask
 from flask_session import Session
 import atexit
 

@@ -10,7 +10,7 @@ from utils import mysql_util
 from utils.mysql_util import add_api_log
 from flask import request, Response
 from utils.redis_util import REDIS
-
+from config import setting
 
 def chat():
     requset_json = None
@@ -24,13 +24,12 @@ def chat():
         check_key = mysql_util.check_key(authorization_key)
         if authorization_key is None or not check_key:
             err_type = "hearder_error"
-            err_msg = "请求头key不正确，请检查请求"
+            err_msg = "请求头的Authorization-Key不正确，请检查"
             return make_response3(1, ip, requset_json, response_text, err_type, err_msg, authorization_key, openai_api_key)
-        try:
-            requset_json = request.json
-        except Exception as e:
+        requset_json = request.json
+        if requset_json is None:
             err_type = "system_error"
-            err_msg = "无法加载json，请检查request.body中的json是否正确"
+            err_msg = "无法加载json或json为空，请检查request.body中的json是否正确"
             return make_response3(1, ip, requset_json, response_text, err_type, err_msg, authorization_key, openai_api_key)
         try:
             response_redis = REDIS.client_list()
@@ -89,19 +88,15 @@ def chat():
             if user is not None:
                 data["user"] = user
             url = 'https://api.openai.com/v1/chat/completions'
-            proxies_dev = {  # 针对urllib3最新版bug的手动设置代理
-                'http': 'http://127.0.0.1:2080',
-                'https': 'http://127.0.0.1:2080'
-            }
-            proxies_product = {  # 针对院内走ssh隧道
-                'http': 'socks5h://127.0.0.1:3129',
-                'https': 'socks5h://127.0.0.1:3129'
+            proxies = {  # 针对urllib3最新版bug的手动设置代理
+                'http': setting.proxies,
+                'https': setting.proxies
             }
             try:
                 if stream:
-                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_dev, stream=True, timeout=30)
+                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True, timeout=30)
                 else:
-                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_dev, timeout=30)
+                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, timeout=30)
                 response.raise_for_status()
             except requests.exceptions.Timeout as e:
                 err_type = "timeout_error"

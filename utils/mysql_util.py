@@ -55,23 +55,13 @@ try:
         connection.close()
     # arena库初始连接
     arena_connection_pool = pooling.MySQLConnectionPool(
-        pool_name="my_pool",
         pool_size=25,
-        dev_config)
-    arena_connection = connection_pool.get_connection()
-    arena_cursor = arena_connection.cursor()
-    arena_cursor.execute("SELECT api_key FROM openai_keys where status = 0")
-    arena_result = arena_cursor.fetchall()
-    arena_column_values = []
-    for row in arena_result:
-        arena_column_values.append(row[0])  # 获取第一列的数据
-    # 把key装进字典里
-    for i in range(len(arena_column_values)):
-        key_manager.key_times[arena_column_values[i]] = 0
-    # 将连接放回连接池
-    if arena_connection.is_connected():
-        arena_cursor.close()
-        arena_connection.close()
+        pool_name="my_pool",
+        host=setting.arena_mysql_host,
+        port=setting.arena_mysql_port,
+        user=setting.arena_mysql_user,
+        password=setting.arena_mysql_password,
+        db=setting.arena_mysql_db)
 except Exception as e:
     raise e
 
@@ -101,8 +91,8 @@ def add_api_log(ip, request_json, response_text, status, err_type, err_msg, auth
 
 
 def check_key(authorization_key):
-    connection = connection_pool.get_connection()
-    query = "SELECT * FROM authorization_keys WHERE key_id = %s and status = %s"
+    connection = arena_connection_pool.get_connection()
+    query = "SELECT * FROM t_auth_keys WHERE key_id = %s and status = %s"
     values = (authorization_key, 0)
     cursor = connection.cursor()
     cursor.execute(query, values)
