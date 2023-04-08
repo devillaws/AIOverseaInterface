@@ -97,7 +97,7 @@ def gpt35turbo():
             }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
             # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True, timeout=30) # 无代理请求
-            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_product, stream=True)
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_dev, stream=True, timeout=30)
             response.raise_for_status()
             # stream_delay = 0.1
             if response.status_code == 200:
