@@ -11,7 +11,7 @@ from common.my_exception import balanceException, getApiKeyException
 from utils.mysql_util import add_chat_log
 from utils.redis_util import REDIS
 from common import response_manager
-
+from config import setting
 
 def gpt35turbo():
     user_id = None
@@ -87,17 +87,13 @@ def gpt35turbo():
             data["presence_penalty"] = presence_penalty
             data["frequency_penalty"] = frequency_penalty
             url = 'https://api.openai.com/v1/chat/completions'
-            proxies_dev = {  # 针对urllib3最新版bug的手动设置代理
-                'http': 'http://127.0.0.1:2080',
-                'https': 'http://127.0.0.1:2080' #注意必须要
-            }
-            proxies_product = {  # 针对院内走ssh隧道
-                'http': 'socks5h://127.0.0.1:3129',
-                'https': 'socks5h://127.0.0.1:3129'
+            proxies = {  # 针对urllib3最新版bug的手动设置代理
+                'http': setting.proxies,
+                'https': setting.proxies
             }
             # 注意如果上下文太长，会报None is not of type 'string' - 'messages.1.content'"
             # response = requests.post(url, data=json.dumps(data), headers=headers, stream=True, timeout=30) # 无代理请求
-            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies_dev, stream=True, timeout=30)
+            response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True, timeout=30)
             response.raise_for_status()
             # stream_delay = 0.1
             if response.status_code == 200:
@@ -106,24 +102,35 @@ def gpt35turbo():
                     for line in response.iter_lines():
                         # time.sleep(stream_delay)
                         # gevent.sleep(stream_delay)
-                        if line:
-                            line = line.decode('utf-8')
-                            line = line[6:].strip()
-                            if line == "[DONE]":
-                                yield "data:[DONE]\n\n"
-                                break
-                            response_data = json.loads(line)
-                            if "choices" in response_data:
-                                delta = response_data["choices"][0]["delta"]
-                                finish_reason = response_data["choices"][0]["finish_reason"]
-                                if "content" in delta:
-                                    content = delta["content"]
-                                    answer += content
-                                    json_content = json.dumps(content)
-                                    yield "data:{}\n\n".format(json_content)
-                                if finish_reason is not None and (finish_reason == "stop" or finish_reason == "length"):
+                        try:
+                            if line:
+                                line = line.decode('utf-8')
+                                line = line[6:].strip()
+                                if line == "[DONE]":
                                     yield "data:[DONE]\n\n"
                                     break
+                                response_data = json.loads(line)
+                                if "choices" in response_data:
+                                    delta = response_data["choices"][0]["delta"]
+                                    finish_reason = response_data["choices"][0]["finish_reason"]
+                                    if "content" in delta:
+                                        content = delta["content"]
+                                        answer += content
+                                        json_content = json.dumps(content)
+                                        yield "data:{}\n\n".format(json_content)
+                                    if finish_reason is not None and (finish_reason == "stop" or finish_reason == "length"):
+                                        yield "data:[DONE]\n\n"
+                                        break
+                            else:
+                                response.raise_for_status()
+                        except requests.exceptions.HTTPError as e:
+                            err_type = "openai_error"
+                            err_msg = str(e)
+                            return response_manager.make_response2(1, ip, user_id, chat_id, messages, answer, err_type,err_msg, openai_api_key)
+                        except requests.exceptions.ReadTimeout as e:
+                            err_type = "timeout_error"
+                            err_msg = "访问openai连接已超时30s"
+                            return response_manager.make_response2(1, ip, user_id, chat_id, messages, answer, err_type,err_msg, openai_api_key)
                     response.close()
                     save_session_answer(messages, answer, session_id, session_prompt_arr)
                     add_chat_log(ip, user_id, chat_id, messages, answer, 0, None, None, openai_api_key, datetime.datetime.now())
@@ -190,7 +197,7 @@ def save_session_answer(query, answer, session_id, session_prompt_arr):
     session_prompt.append(query_dict)
     session_prompt.append(answer_dict)
     length = len(session_prompt)
-    if length > 10:
+    if length > 20:
         del session_prompt[:2]
     numbers_str = json.dumps(session_prompt)
     REDIS.set(session_id, numbers_str)

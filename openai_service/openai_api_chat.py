@@ -94,9 +94,9 @@ def chat():
             }
             try:
                 if stream:
-                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True, timeout=30)
+                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, stream=True, timeout=60)
                 else:
-                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, timeout=30)
+                    response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies, timeout=60)
                 response.raise_for_status()
             except requests.exceptions.Timeout as e:
                 err_type = "timeout_error"

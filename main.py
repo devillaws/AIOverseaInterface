@@ -13,8 +13,8 @@ app = Flask(__name__)
 # app.config['SESSION_KEY_PREFIX'] = 'bigboss'  # 保存到session中的值的前缀
 # app.config['SESSION_REDIS'] = REDIS  # 用于连接redis的配置
 # app.config['MYSQL_POOL'] = connection_pool
-app.config.from_object(config["Pro"])
-Session(app)
+# app.config.from_object(config["Pro"])
+# Session(app)
 
 
 @app.route("/ai/openai/clear_flask_session", methods=("GET", "POST"))
